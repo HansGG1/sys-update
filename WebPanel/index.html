@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dream</title>
+<style>
+:root{
+  --bg:#080b10;--surf:#0f1219;--surf2:#161c28;--surf3:#1c2335;
+  --border:#1e2639;--border2:#252f45;
+  --acc:#7c5ce8;--acc-hi:#9b7ef5;--acc-dim:#5b3fc4;
+  --acc-glow:rgba(124,92,232,.15);--acc-line:rgba(124,92,232,.6);
+  --text:#d8dff0;--text2:#6e7d99;--text3:#374155;
+  --ok:#2ec27e;--warn:#e8a020;--err:#e05252;
+  --tog-off:#232d42
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;overflow:hidden}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.hdr{
+  display:flex;align-items:center;gap:14px;height:52px;padding:0 22px;
+  background:linear-gradient(90deg,#0d1120,#0b0f1a);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  box-shadow:0 1px 0 rgba(124,92,232,.08);
+}
+.logo{
+  width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(135deg,var(--acc-dim),var(--acc));
+  display:grid;place-items:center;flex-shrink:0;
+  box-shadow:0 0 14px rgba(124,92,232,.35);
+}
+.logo svg{width:15px;height:15px;fill:none;stroke:rgba(255,255,255,.95);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.hdr-title{font-size:14px;font-weight:700;letter-spacing:.02em;color:#e2e8f8}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:12px;color:var(--text2)}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s,box-shadow .3s}
+.sdot.ok{background:var(--ok);box-shadow:0 0 7px var(--ok)}
+.sdot.syncing{background:var(--warn);animation:blink 1s ease-in-out infinite}
+.sdot.err{background:var(--err)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.layout{display:flex;height:calc(100vh - 52px)}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar{
+  width:190px;flex-shrink:0;
+  background:linear-gradient(180deg,#0d1120 0%,#090c14 100%);
+  border-right:1px solid var(--border);
+  padding:12px 8px;display:flex;flex-direction:column;gap:1px;
+  overflow-y:auto;
+}
+.nav{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px 8px 12px;border-radius:8px;
+  cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;
+  transition:color .15s,background .15s;user-select:none;
+  position:relative;border:none;background:transparent;width:100%;text-align:left;
+}
+.nav::before{
+  content:'';position:absolute;left:0;top:22%;bottom:22%;
+  width:2.5px;border-radius:2px;background:var(--acc);
+  opacity:0;transition:opacity .15s,box-shadow .15s;
+}
+.nav:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav.active{background:var(--acc-glow);color:#c8b8ff}
+.nav.active::before{opacity:1;box-shadow:0 0 6px var(--acc)}
+.nav svg{width:14px;height:14px;flex-shrink:0;opacity:.5;transition:opacity .15s}
+.nav:hover svg,.nav.active svg{opacity:.85}
+.nav-lbl{font-size:12.5px}
+.sidebar-sep{height:1px;background:var(--border);margin:6px 4px}
+.sidebar-space{flex:1}
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+.main{flex:1;overflow-y:auto;padding:26px 28px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.main::-webkit-scrollbar{width:5px}
+.main::-webkit-scrollbar-track{background:transparent}
+.main::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.section{display:none}
+.section.active{display:block}
+
+/* ── Section header ─────────────────────────────────────────────────────── */
+.sec-head{margin-bottom:22px;display:flex;align-items:baseline;gap:10px}
+.sec-title{font-size:18px;font-weight:700;color:#e4ebff;letter-spacing:-.01em}
+.sec-sub{font-size:12px;color:var(--text2)}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card{
+  background:var(--surf);border:1px solid var(--border);border-radius:11px;
+  margin-bottom:12px;overflow:hidden;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+}
+.card-head{
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text2);background:rgba(255,255,255,.018);
+  display:flex;align-items:center;gap:7px;
+}
+.card-head-dot{width:5px;height:5px;border-radius:50%;background:var(--acc);opacity:.7;flex-shrink:0}
+.row{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:11px 18px;border-bottom:1px solid rgba(30,38,57,.8);
+  transition:background .12s;
+}
+.row:hover{background:rgba(255,255,255,.018)}
+.row:last-child{border-bottom:none}
+.row-info{flex:1;min-width:0}
+.row-label{font-size:13.5px;font-weight:500;color:var(--text)}
+.row-desc{font-size:11.5px;color:var(--text2);margin-top:1px}
+.row-ctrl{display:flex;align-items:center;gap:10px;flex-shrink:0}
+
+/* ── Toggle ──────────────────────────────────────────────────────────────── */
+.tog{position:relative;width:40px;height:22px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.tog-track{
+  position:absolute;inset:0;background:var(--tog-off);
+  border-radius:11px;cursor:pointer;transition:background .2s,box-shadow .2s;
+  border:1px solid var(--border2);
+}
+.tog-track::after{
+  content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;
+  border-radius:50%;background:#4a5672;
+  transition:transform .22s cubic-bezier(.4,0,.2,1),background .2s;
+}
+.tog input:checked~.tog-track{
+  background:var(--acc);border-color:var(--acc-dim);
+  box-shadow:0 0 10px rgba(124,92,232,.3);
+}
+.tog input:checked~.tog-track::after{transform:translateX(18px);background:#fff}
+
+/* ── Slider ──────────────────────────────────────────────────────────────── */
+.slider-wrap{display:flex;align-items:center;gap:10px;min-width:175px}
+.slider-num{
+  font-size:12.5px;font-weight:600;min-width:40px;text-align:right;
+  font-variant-numeric:tabular-nums;color:var(--acc-hi);
+}
+input[type=range]{
+  -webkit-appearance:none;height:3px;flex:1;border-radius:2px;
+  background:var(--border2);outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--acc);cursor:pointer;
+  border:2px solid var(--surf);
+  box-shadow:0 0 0 1px var(--acc-dim);
+  transition:transform .15s,box-shadow .15s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);box-shadow:0 0 8px rgba(124,92,232,.5)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--acc);border:2px solid var(--surf);cursor:pointer}
+
+/* ── Select ──────────────────────────────────────────────────────────────── */
+.ctrl-sel{
+  background:var(--surf2);border:1px solid var(--border2);color:var(--text);
+  border-radius:7px;padding:5px 10px;font-size:13px;cursor:pointer;outline:none;
+  min-width:105px;transition:border-color .15s;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236e7d99'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 9px center;
+  padding-right:26px;
+}
+.ctrl-sel:focus{border-color:var(--acc)}
+.ctrl-sel option{background:#161c28}
+
+/* ── Keybind button ──────────────────────────────────────────────────────── */
+.bind-btn{
+  background:var(--surf2);border:1px solid var(--border2);color:var(--text);
+  border-radius:7px;padding:5px 14px;font-size:12.5px;font-weight:600;
+  cursor:pointer;min-width:108px;text-align:center;
+  transition:border-color .15s,color .15s;white-space:nowrap;
+}
+.bind-btn:hover{border-color:var(--acc);color:var(--acc-hi)}
+.bind-btn.listening{
+  border-color:var(--warn);color:var(--warn);
+  animation:blink .7s ease-in-out infinite;
+}
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn{
+  background:linear-gradient(135deg,var(--acc),var(--acc-dim));
+  color:#fff;border:none;border-radius:7px;padding:8px 16px;
+  font-size:12.5px;font-weight:600;cursor:pointer;
+  transition:opacity .15s,box-shadow .15s;
+  box-shadow:0 1px 4px rgba(124,92,232,.3);white-space:nowrap;
+}
+.btn:hover{opacity:.88;box-shadow:0 2px 10px rgba(124,92,232,.45)}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:6px}
+.btn-danger{background:linear-gradient(135deg,#c84040,#9e2828);box-shadow:0 1px 4px rgba(200,64,64,.3)}
+.btn-danger:hover{box-shadow:0 2px 10px rgba(200,64,64,.45)}
+
+/* ── Text input ──────────────────────────────────────────────────────────── */
+.text-input{
+  background:var(--surf2);border:1px solid var(--border2);
+  color:var(--text);border-radius:7px;padding:7px 11px;font-size:13px;
+  outline:none;transition:border-color .15s;
+}
+.text-input:focus{border-color:var(--acc)}
+.text-input::placeholder{color:var(--text3)}
+
+/* ── Danger card ─────────────────────────────────────────────────────────── */
+.card-danger{
+  background:rgba(200,64,64,.05);
+  border-color:rgba(200,64,64,.2);
+}
+.card-danger .card-head{color:rgba(224,100,100,.75)}
+.card-danger .card-head-dot{background:var(--err)}
+.shutdown-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px}
+
+/* ── Preset list ─────────────────────────────────────────────────────────── */
+.preset-empty{color:var(--text2);font-size:13px;padding:16px 18px;font-style:italic}
+
+/* ── Color picker ─────────────────────────────────────────────────────────── */
+input[type=color]{
+  width:32px;height:28px;border:1px solid var(--border2);border-radius:6px;
+  cursor:pointer;background:none;padding:2px;flex-shrink:0;
+  transition:border-color .15s;
+}
+input[type=color]:hover{border-color:var(--acc)}
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:20px;right:20px;
+  background:var(--surf2);border:1px solid var(--border2);
+  border-radius:9px;padding:9px 16px;font-size:13px;
+  pointer-events:none;opacity:0;transform:translateY(5px);
+  transition:opacity .2s,transform .2s;z-index:100;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ── Auth / Key overlay ──────────────────────────────────────────────── */
+.auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:900;display:flex;align-items:center;justify-content:center}
+.auth-card{
+  background:var(--surf);border:1px solid var(--border2);border-radius:14px;
+  padding:36px 40px;width:360px;display:flex;flex-direction:column;gap:12px;
+  box-shadow:0 8px 40px rgba(0,0,0,.6);
+}
+.auth-title{font-size:17px;font-weight:700;color:#e4ebff;text-align:center;margin-bottom:2px}
+.auth-sub{font-size:12px;color:var(--text2);text-align:center}
+.auth-input{
+  width:100%;background:var(--surf2);border:1px solid var(--border2);
+  color:var(--text);border-radius:8px;padding:10px 14px;font-size:13px;
+  outline:none;transition:border-color .15s;
+}
+.auth-input:focus{border-color:var(--acc)}
+.auth-input::placeholder{color:var(--text3)}
+.auth-err{font-size:12px;color:var(--err);min-height:14px}
+.auth-switch{font-size:12px;color:var(--text2);text-align:center}
+.auth-switch a{color:var(--acc-hi);text-decoration:none}
+.auth-switch a:hover{text-decoration:underline}
+
+/* ── CMD box ─────────────────────────────────────────────────────────── */
+.cmd-box{
+  background:#090c14;border:1px solid var(--border2);border-radius:8px;
+  padding:12px 16px;font-family:'Consolas','Courier New',monospace;font-size:11.5px;
+  color:#7ec87e;word-break:break-all;cursor:pointer;
+  transition:border-color .15s;user-select:all;line-height:1.7;
+}
+.cmd-box:hover{border-color:var(--acc)}
+</style>
+</head>
+<body>
+
+<!-- Auth screen -->
+<div id="auth-overlay" class="auth-overlay">
+  <div class="auth-card">
+    <div style="display:flex;justify-content:center;margin-bottom:4px">
+      <div class="logo" style="width:40px;height:40px;border-radius:12px">
+        <svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="rgba(255,255,255,.95)" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4l1.4-1.4M11 5l1.4-1.4"/></svg>
+      </div>
+    </div>
+    <div class="auth-title">Overlay Panel</div>
+    <div id="form-login">
+      <input type="email" class="auth-input" id="inp-email" placeholder="Email" onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="password" class="auth-input" id="inp-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div id="auth-err" class="auth-err"></div>
+      <button class="btn" style="width:100%;padding:10px" onclick="doLogin()">Sign In</button>
+      <div class="auth-switch">New here? <a href="#" onclick="switchAuthForm('register');return false">Create account</a></div>
+    </div>
+    <div id="form-register" style="display:none">
+      <input type="email" class="auth-input" id="inp-reg-email" placeholder="Email">
+      <input type="password" class="auth-input" id="inp-reg-pass" placeholder="Password (min 6 chars)" onkeydown="if(event.key==='Enter')doRegister()">
+      <div id="reg-err" class="auth-err"></div>
+      <button class="btn" style="width:100%;padding:10px" onclick="doRegister()">Create Account</button>
+      <div class="auth-switch">Have an account? <a href="#" onclick="switchAuthForm('login');return false">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- Key entry screen -->
+<div id="key-overlay" class="auth-overlay" style="display:none">
+  <div class="auth-card">
+    <div class="auth-title">License Key</div>
+    <div id="key-status-msg" class="auth-sub">Enter your license key to continue.</div>
+    <input type="text" class="auth-input" id="inp-key" placeholder="XXXX-XXXX-XXXX-XXXX"
+      style="text-transform:uppercase;letter-spacing:.12em;text-align:center;font-family:monospace;font-size:14px"
+      oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')activateKey()">
+    <div id="key-err" class="auth-err"></div>
+    <button id="key-activate-btn" class="btn" style="width:100%;padding:10px;margin-top:4px" onclick="activateKey()">Activate</button>
+    <div class="auth-switch"><a href="#" onclick="doLogout();return false">Sign out</a></div>
+  </div>
+</div>
+
+<div style="display:flex;flex-direction:column;height:100vh">
+
+<!-- Header -->
+<header class="hdr">
+  <div class="logo">
+    <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4l1.4-1.4M11 5l1.4-1.4"/></svg>
+  </div>
+  <span class="hdr-title">Overlay Panel</span>
+  <div class="hdr-right">
+    <span id="user-email-lbl" style="display:none;font-size:11.5px;color:var(--text2)"></span>
+    <button id="logout-btn" onclick="doLogout()" style="display:none;background:none;border:1px solid var(--border2);color:var(--text2);border-radius:5px;padding:3px 9px;font-size:11px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--border2)'">Sign out</button>
+    <span class="sdot" id="sdot"></span>
+    <span id="stext">Connecting…</span>
+  </div>
+</header>
+
+<!-- Expiry warning banner — shown when key expires within 3 days -->
+<div id="expiry-banner" style="display:none;background:rgba(232,160,32,.1);border-bottom:1px solid rgba(232,160,32,.3);padding:7px 22px;font-size:12.5px;color:var(--warn);text-align:center;flex-shrink:0"></div>
+
+<div class="layout">
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <button class="nav active" onclick="show('esp',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 8C2.5 4.5 5 3 8 3s5.5 1.5 7 5c-1.5 3.5-4 5-7 5S2.5 11.5 1 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+    <span class="nav-lbl">ESP Players</span>
+  </button>
+  <button class="nav" onclick="show('vehicles',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10V8l2-4h8l2 4v2"/><rect x="1" y="10" width="14" height="3" rx="1"/><circle cx="4.5" cy="13" r="1.2"/><circle cx="11.5" cy="13" r="1.2"/></svg>
+    <span class="nav-lbl">Vehicles</span>
+  </button>
+  <div class="sidebar-sep"></div>
+  <button class="nav" onclick="show('aimbot',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="1.5"/><line x1="8" y1="1.5" x2="8" y2="4"/><line x1="8" y1="12" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="4" y2="8"/><line x1="12" y1="8" x2="14.5" y2="8"/></svg>
+    <span class="nav-lbl">Aimbot</span>
+  </button>
+  <button class="nav" onclick="show('triggerbot',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2L5 9h5l-3 5"/></svg>
+    <span class="nav-lbl">Triggerbot</span>
+  </button>
+  <button class="nav" onclick="show('silentaim',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 8h4m8 0h-4m-2-6v4m0 8v-4"/><circle cx="8" cy="8" r="2.5"/><path d="M5 3L3 1M11 3l2-1M5 13l-2 2M11 13l2 2" stroke-width="1.2" opacity=".5"/></svg>
+    <span class="nav-lbl">Silent Aim</span>
+  </button>
+  <div class="sidebar-sep"></div>
+  <button class="nav" onclick="show('friends',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="5" r="2.2"/><path d="M1 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4"/><circle cx="12" cy="5.5" r="1.8"/><path d="M10 13c0-1.5.9-2.7 2-3.1" stroke-dasharray="2 1"/><path d="M14 7.5v3M12.5 9h3" stroke-width="1.5"/></svg>
+    <span class="nav-lbl">Friends</span>
+  </button>
+  <div class="sidebar-sep"></div>
+  <button class="nav" onclick="show('radar',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3.2"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/><line x1="8" y1="8" x2="13" y2="3.5" stroke-width="1.2" opacity=".5"/></svg>
+    <span class="nav-lbl">Radar</span>
+  </button>
+  <button class="nav" onclick="show('misc',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 1.5h3l.5 2a5 5 0 0 1 1.4.8l1.9-.7 1.5 2.6-1.5 1.3a5 5 0 0 1 0 1.6l1.5 1.3-1.5 2.6-1.9-.7a5 5 0 0 1-1.4.8l-.5 2h-3l-.5-2a5 5 0 0 1-1.4-.8l-1.9.7L1.2 8.6l1.5-1.3a5 5 0 0 1 0-1.6L1.2 4.4l1.5-2.6 1.9.7a5 5 0 0 1 1.4-.8l.5-2Z"/><circle cx="8" cy="8" r="2"/></svg>
+    <span class="nav-lbl">Misc</span>
+  </button>
+  <div class="sidebar-sep"></div>
+  <button class="nav" onclick="show('configs',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h5"/><path d="M9 13l2 2 4-4"/></svg>
+    <span class="nav-lbl">Configs</span>
+  </button>
+  <button class="nav" onclick="show('options',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/><line x1="10" y1="3" x2="14" y2="3"/><line x1="2" y1="3" x2="6" y2="3"/><line x1="10" y1="8" x2="14" y2="8"/><line x1="2" y1="8" x2="6" y2="8"/><line x1="10" y1="13" x2="14" y2="13"/><line x1="2" y1="13" x2="6" y2="13"/></svg>
+    <span class="nav-lbl">Options</span>
+  </button>
+  <div class="sidebar-sep"></div>
+  <button class="nav" onclick="show('cmd',this)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="14" height="10" rx="2"/><path d="M4 7l2 2-2 2M8.5 11h4"/></svg>
+    <span class="nav-lbl">Setup</span>
+  </button>
+  <button class="nav" id="nav-admin" onclick="show('admin',this);adminLoadUsers()" style="display:none">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5.5" r="2.5"/><path d="M2 14c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M12.5 2l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.8-1.6.8.3-1.7-1.2-1.2 1.7-.2z" fill="currentColor" stroke="none"/></svg>
+    <span class="nav-lbl">Admin</span>
+  </button>
+  <div class="sidebar-space"></div>
+</nav>
+
+<!-- Main content -->
+<main class="main">
+
+<!-- ══════════════════════════════════════════════════════ ESP Players -->
+<div class="section active" id="s-esp">
+  <div class="sec-head">
+    <div class="sec-title">ESP — Players</div>
+    <div class="sec-sub">Render info above enemy players</div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Visibility</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.enabled" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Show NPCs</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.show_npcs" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Visible Check</div><div class="row-desc">Only draw players in line of sight</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.visible_check" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Render Distance</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="50" max="800" data-path="esp.render_dist" oninput="sync(this);save()"><span class="slider-num" data-val="esp.render_dist">300</span></div></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Elements</div>
+    <div class="row"><div class="row-info"><div class="row-label">Box</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.box" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Skeleton</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.skeleton" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Name</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.name" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Health Bar</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.health_bar" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Armor Bar</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.armor_bar" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Weapon Name</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.weapon" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Distance</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.distance" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Snaplines</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.snaplines" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Head Dot</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="esp.head_dot" onchange="save()"><span class="tog-track"></span></label></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Vehicles -->
+<div class="section" id="s-vehicles">
+  <div class="sec-head"><div class="sec-title">ESP — Vehicles</div><div class="sec-sub">Show info above nearby vehicles</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Settings</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="vehicles.enabled" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Ignore Occupied</div><div class="row-desc">Skip vehicles with players inside</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="vehicles.ignore_occupied" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Marker</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="vehicles.marker" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Show Name</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="vehicles.name" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Show Distance</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="vehicles.distance" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Render Distance</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="50" max="800" data-path="vehicles.render_dist" oninput="sync(this);save()"><span class="slider-num" data-val="vehicles.render_dist">300</span></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Aimbot -->
+<div class="section" id="s-aimbot">
+  <div class="sec-head"><div class="sec-title">Aimbot</div><div class="sec-sub">Legit-style aim assistance</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>General</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="aimbot.enabled" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Target NPCs</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="aimbot.target_npc" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Visible Check</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="aimbot.visible_check" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Prediction</div><div class="row-desc">Lead moving targets based on velocity</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="aimbot.prediction" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Hitbox</div></div><div class="row-ctrl"><select class="ctrl-sel" data-path="aimbot.hitbox" onchange="saveSelect(this)"><option value="0">Head</option><option value="1">Neck</option><option value="2">Chest</option></select></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Max Distance</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="50" max="500" data-path="aimbot.max_dist" oninput="sync(this);save()"><span class="slider-num" data-val="aimbot.max_dist">250</span></div></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Smoothing</div>
+    <div class="row"><div class="row-info"><div class="row-label">FOV</div><div class="row-desc">Activation radius in pixels</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="1" max="180" data-path="aimbot.fov" oninput="sync(this);save()"><span class="slider-num" data-val="aimbot.fov">10</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Smooth H</div><div class="row-desc">1 = instant · 100 = very gradual</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="1" max="100" data-path="aimbot.smooth_h" oninput="sync(this);save()"><span class="slider-num" data-val="aimbot.smooth_h">30</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Smooth V</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="1" max="100" data-path="aimbot.smooth_v" oninput="sync(this);save()"><span class="slider-num" data-val="aimbot.smooth_v">30</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Keybind</div><div class="row-desc">Click · then press a key or mouse button · Esc = Always On</div></div><div class="row-ctrl"><button class="bind-btn" data-path="aimbot.keybind" onclick="startBind(this)"><span class="bind-key">Always On</span></button></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Display</div>
+    <div class="row"><div class="row-info"><div class="row-label">Show FOV Circle</div><div class="row-desc">Draw aimbot FOV on screen</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="general.show_aimbot_fov" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Circle Color</div><div class="row-desc">Color of the aimbot FOV circle</div></div><div class="row-ctrl" style="gap:8px"><input type="color" data-path="aimbot.fov_color" onchange="saveColor(this)"><div class="slider-wrap"><input type="range" min="0" max="100" data-path="aimbot.fov_alpha" oninput="sync(this);save()"><span class="slider-num" data-val="aimbot.fov_alpha">100</span><span style="font-size:12px;color:var(--text2);margin-left:2px">%</span></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Triggerbot -->
+<div class="section" id="s-triggerbot">
+  <div class="sec-head"><div class="sec-title">Triggerbot</div><div class="sec-sub">Auto-fire when crosshair is on target</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Settings</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="triggerbot.enabled" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Shot NPCs</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="triggerbot.shot_npc" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Visible Check</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="triggerbot.visible_check" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">FOV</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="1" max="60" data-path="triggerbot.fov" oninput="sync(this);save()"><span class="slider-num" data-val="triggerbot.fov">3</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Reaction (ms)</div><div class="row-desc">Delay before firing</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="0" max="500" data-path="triggerbot.reaction_ms" oninput="sync(this);save()"><span class="slider-num" data-val="triggerbot.reaction_ms">0</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Max Distance</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="50" max="500" data-path="triggerbot.max_dist" oninput="sync(this);save()"><span class="slider-num" data-val="triggerbot.max_dist">250</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Keybind</div><div class="row-desc">Click · then press a key or mouse button · Esc = Always On</div></div><div class="row-ctrl"><button class="bind-btn" data-path="triggerbot.keybind" onclick="startBind(this)"><span class="bind-key">Always On</span></button></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Display</div>
+    <div class="row"><div class="row-info"><div class="row-label">Show FOV Circle</div><div class="row-desc">Draw triggerbot FOV on screen</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="general.show_trigger_fov" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Circle Color</div><div class="row-desc">Color of the triggerbot FOV circle</div></div><div class="row-ctrl" style="gap:8px"><input type="color" data-path="triggerbot.fov_color" onchange="saveColor(this)"><div class="slider-wrap"><input type="range" min="0" max="100" data-path="triggerbot.fov_alpha" oninput="sync(this);save()"><span class="slider-num" data-val="triggerbot.fov_alpha">100</span><span style="font-size:12px;color:var(--text2);margin-left:2px">%</span></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Silent Aim -->
+<div class="section" id="s-silentaim">
+  <div class="sec-head"><div class="sec-title">Silent Aim</div><div class="sec-sub">Redirect bullets to target without moving crosshair</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>General</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="silentaim.enabled" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Shot NPCs</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="silentaim.shot_npc" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Visible Check</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="silentaim.visible_check" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Hitbox</div></div><div class="row-ctrl"><select class="ctrl-sel" data-path="silentaim.hitbox" onchange="saveSelect(this)"><option value="0">Head</option><option value="1">Neck</option><option value="2">Chest</option></select></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">FOV</div><div class="row-desc">Target acquisition radius in pixels</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="1" max="180" data-path="silentaim.fov" oninput="sync(this);save()"><span class="slider-num" data-val="silentaim.fov">10</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Max Distance</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="50" max="500" data-path="silentaim.max_dist" oninput="sync(this);save()"><span class="slider-num" data-val="silentaim.max_dist">250</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Hit Chance %</div><div class="row-desc">100 = always hit · lower = occasional miss</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="10" max="100" data-path="silentaim.hit_chance" oninput="sync(this);save()"><span class="slider-num" data-val="silentaim.hit_chance">100</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Keybind</div><div class="row-desc">Click · then press a key or mouse button · Esc = Always On</div></div><div class="row-ctrl"><button class="bind-btn" data-path="silentaim.keybind" onclick="startBind(this)"><span class="bind-key">Always On</span></button></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Display</div>
+    <div class="row"><div class="row-info"><div class="row-label">Show FOV Circle</div><div class="row-desc">Draw silent aim FOV on screen</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="general.show_silentaim_fov" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Circle Color</div><div class="row-desc">Color of the silent aim FOV circle</div></div><div class="row-ctrl" style="gap:8px"><input type="color" data-path="silentaim.fov_color" onchange="saveColor(this)"><div class="slider-wrap"><input type="range" min="0" max="100" data-path="silentaim.fov_alpha" oninput="sync(this);save()"><span class="slider-num" data-val="silentaim.fov_alpha">100</span><span style="font-size:12px;color:var(--text2);margin-left:2px">%</span></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Friends -->
+<div class="section" id="s-friends">
+  <div class="sec-head"><div class="sec-title">Friends</div><div class="sec-sub">Click Add Friend next to any player — they show green and are never targeted</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>World — Current Players</div>
+    <div style="padding:10px 18px 0">
+      <input class="text-input" id="world-search" placeholder="Search players..." oninput="renderWorldPlayers()" style="width:100%">
+    </div>
+    <div id="world-players-list"><div class="preset-empty">No players visible — overlay must be active and in a server</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Friend List</div>
+    <div id="friend-list"><div class="preset-empty">No friends added yet</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Display</div>
+    <div class="row">
+      <div class="row-info"><div class="row-label">Skeleton Color</div><div class="row-desc">ESP color for friends</div></div>
+      <div class="row-ctrl" style="display:flex;gap:8px;align-items:center">
+        <input type="color" data-path="esp.friend_color" onchange="saveColor(this)" style="width:36px;height:28px;border:none;background:none;cursor:pointer;padding:0">
+        <div class="slider-wrap" style="width:80px"><input type="range" min="0" max="100" data-path="esp.friend_alpha" oninput="sync(this);save()"><span class="slider-num" data-val="esp.friend_alpha">100</span></div>
+        <span style="font-size:11px;color:var(--text2)">Alpha</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Radar -->
+<div class="section" id="s-radar">
+  <div class="sec-head"><div class="sec-title">Radar</div><div class="sec-sub">2D minimap showing nearby players</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Settings</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="radar.enabled" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Show NPCs</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="radar.show_npc" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Rotate with Camera</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="radar.rotate_cam" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Range (m)</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="50" max="600" data-path="radar.range" oninput="sync(this);save()"><span class="slider-num" data-val="radar.range">150</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Display Radius (px)</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="40" max="200" data-path="radar.radius" oninput="sync(this);save()"><span class="slider-num" data-val="radar.radius">75</span></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Misc -->
+<div class="section" id="s-misc">
+  <div class="sec-head"><div class="sec-title">Misc</div><div class="sec-sub">Weapon tweaks and player exploits</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Weapon</div>
+    <div class="row"><div class="row-info"><div class="row-label">No Recoil</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.norecoil" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">No Spread</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.nospread" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">No Reload</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.noreload" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">No Sway</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.nosway" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Rapid Fire</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.rapidfire" onchange="save()"><span class="tog-track"></span></label></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Damage Multiplier</div>
+    <div class="row"><div class="row-info"><div class="row-label">Enabled</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.damagemult" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Multiplier</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="1" max="100" step="0.5" data-path="misc.damage_mult_val" data-float="true" oninput="sync(this);save()"><span class="slider-num" data-val="misc.damage_mult_val">1.0</span></div></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Player</div>
+    <div class="row"><div class="row-info"><div class="row-label">God Mode</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.god" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Noclip</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.noclip" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Noclip Speed</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="10" max="500" data-path="misc.noclip_speed" oninput="sync(this);save()"><span class="slider-num" data-val="misc.noclip_speed">100</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Bubbles</div><div class="row-desc">Godmode bypass alternative</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.bubbles" onchange="save()"><span class="tog-track"></span></label></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Health</div>
+    <div class="row"><div class="row-info"><div class="row-label">Lock Health</div><div class="row-desc">Keeps player at set health while active</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="misc.start_health" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Health Amount</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="100" max="500" data-path="misc.health_amount" oninput="sync(this);save()"><span class="slider-num" data-val="misc.health_amount">200</span></div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Configs -->
+<div class="section" id="s-configs">
+  <div class="sec-head"><div class="sec-title">Configs</div><div class="sec-sub">Save and load setting presets</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Save Current</div>
+    <div class="row">
+      <div class="row-info"><div class="row-label">Config Name</div></div>
+      <div class="row-ctrl" style="gap:8px">
+        <input class="text-input" id="preset-name" placeholder="e.g. Legit" style="width:130px">
+        <button class="btn btn-sm" onclick="savePreset()">Save</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Saved Configs</div>
+    <div id="preset-list"><div class="preset-empty">No configs saved yet</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Options -->
+<div class="section" id="s-options">
+  <div class="sec-head"><div class="sec-title">Options</div><div class="sec-sub">General settings and display</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>General</div>
+    <div class="row"><div class="row-info"><div class="row-label">Screen Capture Bypass</div><div class="row-desc">Hide overlay from OBS / recordings</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="general.capture_bypass" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Keybind HUD</div><div class="row-desc">Show active features in corner of screen</div></div><div class="row-ctrl"><label class="tog"><input type="checkbox" data-path="general.keybind_list" onchange="save()"><span class="tog-track"></span></label></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Update Interval</div><div class="row-desc">How often the overlay checks Firebase — 0 = as fast as possible</div></div><div class="row-ctrl"><div class="slider-wrap"><input type="range" min="0" max="10000" step="100" data-path="general.thread_delay" oninput="sync(this);save()"><span class="slider-num" data-val="general.thread_delay">1000</span><span style="font-size:12px;color:var(--text2);margin-left:2px">ms</span></div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">Target Monitor</div><div class="row-desc">Which display to show the overlay on</div></div><div class="row-ctrl"><select class="ctrl-sel" data-path="general.target_monitor" onchange="saveSelect(this)"><option value="0">Monitor 1 (Primary)</option><option value="1">Monitor 2</option><option value="2">Monitor 3</option></select></div></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Session</div>
+    <div class="row">
+      <div class="row-info">
+        <div class="row-label">Overlay Status</div>
+        <div class="row-desc">Current cheat session state on target PC</div>
+      </div>
+      <div class="row-ctrl" style="gap:8px;align-items:center">
+        <span id="sess-dot" class="sdot"></span>
+        <span id="sess-text" style="font-size:13px;color:var(--txt2)">Waiting</span>
+      </div>
+    </div>
+    <div class="shutdown-row">
+      <div class="row-info">
+        <div class="row-label">Load</div>
+        <div class="row-desc">Activate cheat on target PC — click after joining a server</div>
+      </div>
+      <button id="load-btn" class="btn" onclick="doLoad()">Load</button>
+    </div>
+  </div>
+  <div class="card card-danger">
+    <div class="card-head"><span class="card-head-dot"></span>Danger Zone</div>
+    <div class="shutdown-row">
+      <div class="row-info">
+        <div class="row-label" style="color:#e07070">Unload</div>
+        <div class="row-desc">Closes the overlay on the target PC within 2 seconds</div>
+      </div>
+      <button class="btn btn-danger" onclick="doShutdown()">Unload</button>
+    </div>
+    <div class="shutdown-row" style="border-top:1px solid rgba(224,82,82,.15)">
+      <div class="row-info">
+        <div class="row-label" style="color:#e07070">Destruct</div>
+        <div class="row-desc">Permanently deletes the exe, cfg, scheduled task and all traces — cannot be undone</div>
+      </div>
+      <button class="btn btn-danger" onclick="doDestruct()">Destruct</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Setup / CMD -->
+<div class="section" id="s-cmd">
+  <div class="sec-head"><div class="sec-title">Setup</div><div class="sec-sub">Commands to install and run the overlay</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Step 1 — Install (run once as Administrator)</div>
+    <div style="padding:16px 18px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Open <b style="color:var(--text)">CMD as Administrator</b> and paste:</div>
+      <div class="cmd-box" id="cmd-install" onclick="copyCMD('install')" title="Click to copy">—</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Downloads the overlay, saves it under Microsoft\Network, and registers autostart</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Step 2 — Start manually (after install)</div>
+    <div style="padding:16px 18px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">To launch the overlay without rebooting:</div>
+      <div class="cmd-box" id="cmd-run" onclick="copyCMD('run')" title="Click to copy">—</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>How to use</div>
+    <div class="row"><div class="row-info"><div class="row-label">1. Run install command once</div><div class="row-desc">Sets up the overlay and registers it to start on every boot</div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">2. Reboot or run start command</div><div class="row-desc">The overlay starts silently — nothing visible yet</div></div></div>
+    <div class="row"><div class="row-info"><div class="row-label">3. Join a FiveM server</div><div class="row-desc">Then go to Options → Session → click Load</div></div></div>
+  </div>
+  <div class="card card-danger">
+    <div class="card-head"><span class="card-head-dot"></span>Emergency Cleanup — if the overlay was deleted by anticheat</div>
+    <div style="padding:16px 18px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">If the overlay was removed by anticheat before Destruct could run, paste this in <b style="color:var(--text)">CMD as Administrator</b> to remove all traces manually:</div>
+      <div class="cmd-box" id="cmd-emergency" onclick="copyCMD('emergency')" title="Click to copy">—</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Removes the scheduled task, the install folder, and the old registry entry</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Admin -->
+<div class="section" id="s-admin">
+  <div class="sec-head"><div class="sec-title">Admin</div><div class="sec-sub">Key management and user control</div></div>
+  <div class="card">
+    <div class="card-head"><span class="card-head-dot"></span>Generate Key</div>
+    <div class="row">
+      <div class="row-info"><div class="row-label">Expiry</div><div class="row-desc">How long the key is valid after activation</div></div>
+      <div class="row-ctrl">
+        <select class="ctrl-sel" id="key-expiry">
+          <option value="1">1 Day</option>
+          <option value="7">7 Days</option>
+          <option value="30">30 Days</option>
+          <option value="90">90 Days</option>
+          <option value="0">Lifetime</option>
+        </select>
+        <button class="btn" onclick="adminGenKey()">Generate</button>
+      </div>
+    </div>
+    <div id="gen-key-result" style="padding:14px 18px 18px;display:none;border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:7px">Click to copy and send to your friend:</div>
+      <div id="gen-key-code" onclick="copyKey()"
+        style="font-family:monospace;font-size:16px;font-weight:700;color:var(--acc-hi);cursor:pointer;
+        padding:12px 16px;background:var(--surf2);border-radius:8px;border:1px solid var(--border2);
+        letter-spacing:.12em;text-align:center;transition:border-color .15s"
+        onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--border2)'"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="card-head-dot"></span>Users
+      <button class="btn btn-sm" style="margin-left:auto;font-size:11px" onclick="adminLoadUsers()">Refresh</button>
+    </div>
+    <div id="admin-users-list"><div class="preset-empty">Click Refresh to load users</div></div>
+  </div>
+</div>
+
+</main>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp }                                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, onValue, set, remove, get, update }  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+const ADMIN_EMAIL = 'billigludder1@gmail.com';
+const EXE_URL     = 'https://raw.githubusercontent.com/HansGG1/sys-update/main/r.exe';
+
+// Real Windows process names — each is documented on Microsoft/tech pages,
+// making them appear legitimate when googled in Task Manager.
+// Shell/graphics processes (ShellExperienceHost, StartMenuExperienceHost) are
+// included because they legitimately use DirectX for rendering.
+const FILENAMES = [
+  'RuntimeBroker','backgroundTaskHost','dasHost','TokenBroker',
+  'smartscreen','SearchProtocolHost','WaaSMedicAgent','UsoClient',
+  'CompatTelRunner','wermgr','TiWorker','MpSigStub',
+  'WinSAT','MusNotification','DeviceCensus','SystemSettingsAdminFlows',
+  'mobsync','WorkFolders','ShellExperienceHost','StartMenuExperienceHost'
+];
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyB99yk0rf8WEQaLfCkAZ6Fb4BzOx6eqd0o",
+  authDomain:        "hans-9e9e6.firebaseapp.com",
+  databaseURL:       "https://hans-9e9e6-default-rtdb.firebaseio.com",
+  projectId:         "hans-9e9e6",
+  storageBucket:     "hans-9e9e6.firebasestorage.app",
+  messagingSenderId: "641518781100",
+  appId:             "1:641518781100:web:2b3f8ae1c66324c3eb1509"
+};
+
+const DEFAULTS = {
+  esp:        { enabled:true, show_npcs:false, visible_check:false, box:false, skeleton:true, name:true, health_bar:true, armor_bar:false, weapon:true, distance:false, snaplines:false, head_dot:false, head_dot_size:2, render_dist:300, friend_color:'#00ff00', friend_alpha:100 },
+  vehicles:   { enabled:false, name:true, distance:true, render_dist:300, ignore_occupied:false, marker:false },
+  aimbot:     { enabled:false, fov:10, smooth_h:30, smooth_v:30, visible_check:false, prediction:false, target_npc:false, keybind:0, hitbox:0, max_dist:250, fov_color:'#ffffff', fov_alpha:100 },
+  triggerbot: { enabled:false, fov:3, reaction_ms:0, visible_check:false, keybind:0, shot_npc:false, max_dist:250, fov_color:'#ff3333', fov_alpha:100 },
+  silentaim:  { enabled:false, fov:10, visible_check:false, shot_npc:false, max_dist:250, hitbox:0, hit_chance:100, keybind:0, fov_color:'#ff3333', fov_alpha:100 },
+  radar:      { enabled:false, range:150, radius:75, show_npc:false, rotate_cam:true },
+  misc:       { norecoil:false, nospread:false, nosway:false, noreload:false, rapidfire:false, damagemult:false, damage_mult_val:1.0, god:false, noclip:false, noclip_speed:100, bubbles:false, health_amount:200, start_health:false },
+  general:    { capture_bypass:true, show_aimbot_fov:false, show_trigger_fov:false, show_silentaim_fov:false, keybind_list:false, thread_delay:1000, target_monitor:0, shutdown:false, activate:false }
+};
+
+let state = JSON.parse(JSON.stringify(DEFAULTS));
+let db, auth, settingsRef, presetsRef, friendsRef, playersRef;
+let presetsData = {};
+let playersData = [];
+let currentUser = null, currentUserData = null;
+let listenersActive = false;
+
+function setStatus(cls, text) {
+  document.getElementById('sdot').className = 'sdot ' + cls;
+  document.getElementById('stext').textContent = text;
+}
+
+function showScreen(s) {
+  document.getElementById('auth-overlay').style.display = s === 'auth' ? 'flex' : 'none';
+  document.getElementById('key-overlay').style.display  = s === 'key'  ? 'flex' : 'none';
+  const on = s === 'none';
+  document.getElementById('user-email-lbl').style.display = on ? '' : 'none';
+  document.getElementById('logout-btn').style.display     = on ? '' : 'none';
+}
+
+function launchApp(user, ud) {
+  // Per-user Firebase paths
+  settingsRef = ref(db, `cfg/users/${user.uid}/settings`);
+  presetsRef  = ref(db, `cfg/users/${user.uid}/presets`);
+  friendsRef  = ref(db, `cfg/users/${user.uid}/settings/friends`);
+  playersRef  = ref(db, `cfg/users/${user.uid}/players`);
+
+  // Always reset activate on panel login — cleans stale Firebase state from previous session.
+  // Safe: if exe is already past WaitForActivate() it no longer reads this flag.
+  set(ref(db, `cfg/users/${user.uid}/settings/general/activate`), false).catch(() => {});
+
+  showScreen('none');
+  document.getElementById('user-email-lbl').textContent = user.email;
+  if (user.email === ADMIN_EMAIL) document.getElementById('nav-admin').style.display = '';
+  if (ud && ud.filename) updateCMD(user.uid, ud.filename);
+
+  // Key expiry warning — show banner if ≤ 3 days left
+  if (ud && ud.expires > 0) {
+    const msLeft   = ud.expires - Date.now();
+    const daysLeft = Math.ceil(msLeft / 86400000);
+    if (daysLeft <= 3 && daysLeft > 0) {
+      const b = document.getElementById('expiry-banner');
+      b.textContent = `⚠ Your key expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'} — contact admin for a renewal.`;
+      b.style.display = '';
+    }
+  }
+
+  if (!listenersActive) {
+    listenersActive = true;
+    onValue(settingsRef, snap => {
+      const data = snap.val();
+      if (data) {
+        for (const s in DEFAULTS) {
+          if (data[s]) { state[s] = state[s] || {}; Object.assign(state[s], data[s]); }
+        }
+        applyState();
+      }
+      setStatus('ok', 'Connected');
+    }, () => setStatus('err', 'Connection error'));
+
+    onValue(presetsRef, snap => {
+      presetsData = snap.val() || {};
+      renderPresets();
+    });
+
+    onValue(friendsRef, snap => {
+      friendsData = snap.val() || {};
+      renderFriends();
+      renderWorldPlayers();
+    });
+
+    onValue(playersRef, snap => {
+      const val = snap.val();
+      playersData = val ? Object.values(val).filter(Boolean) : [];
+      renderWorldPlayers();
+    });
+  }
+}
+
+try {
+  const app = initializeApp(firebaseConfig);
+  db          = getDatabase(app);
+  auth        = getAuth(app);
+  settingsRef = null;
+  presetsRef  = null;
+
+  onAuthStateChanged(auth, async user => {
+    currentUser = user;
+    if (!user) { showScreen('auth'); return; }
+    try {
+      const snap = await get(ref(db, `users/${user.uid}`));
+      let ud     = snap.val();
+      currentUserData = ud;
+
+      // Admin always has lifetime access — create record if missing
+      if (user.email === ADMIN_EMAIL) {
+        if (!ud || ud.expires === undefined) {
+          ud = { email: user.email, expires: 0, filename: 'AudioSrvHost', activated: Date.now() };
+          await set(ref(db, `users/${user.uid}`), ud);
+          currentUserData = ud;
+        }
+        launchApp(user, ud); return;
+      }
+
+      if (!ud || ud.expires === undefined) {
+        document.getElementById('key-status-msg').textContent = 'Enter your license key to continue.';
+        document.getElementById('inp-key').style.display = '';
+        document.getElementById('key-activate-btn').style.display = '';
+        showScreen('key'); return;
+      }
+      if (ud.expires > 0 && Date.now() > ud.expires) {
+        document.getElementById('key-status-msg').textContent = 'Your license key has expired. Contact admin for a new key.';
+        document.getElementById('inp-key').style.display = 'none';
+        document.getElementById('key-activate-btn').style.display = 'none';
+        showScreen('key'); return;
+      }
+      launchApp(user, ud);
+    } catch(e) { setStatus('err', 'Database error'); }
+  });
+
+  setStatus('syncing', 'Connecting…');
+} catch(e) {
+  setStatus('err', 'Firebase error');
+  console.error(e);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getPath(obj, path) { return path.split('.').reduce((o, k) => o?.[k], obj); }
+function setPath(obj, path, val) {
+  const keys = path.split('.');
+  let o = obj;
+  for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]] = o[keys[i]] || {};
+  o[keys[keys.length - 1]] = val;
+}
+
+function applyState() {
+  document.querySelectorAll('[data-path]').forEach(el => {
+    const val = getPath(state, el.dataset.path);
+    if (val === undefined) return;
+    if (el.type === 'checkbox') {
+      el.checked = !!val;
+    } else if (el.type === 'range') {
+      el.value = val;
+      updateSliderFill(el);
+      const span = el.closest('.slider-wrap')?.querySelector('[data-val]');
+      if (span) span.textContent = el.dataset.float === 'true' ? parseFloat(val).toFixed(1) : Math.round(val);
+    } else if (el.type === 'color') {
+      el.value = val || '#ffffff';
+    } else if (el.tagName === 'SELECT') {
+      el.value = String(val);
+    } else if (el.classList.contains('bind-btn')) {
+      el.querySelector('.bind-key').textContent = getKeyName(val);
+    }
+  });
+
+  // Session status indicator
+  const active = !!state.general?.activate;
+  const dot  = document.getElementById('sess-dot');
+  const txt  = document.getElementById('sess-text');
+  const btn  = document.getElementById('load-btn');
+  if (dot)  { dot.className = 'sdot ' + (active ? 'ok' : ''); }
+  if (txt)  { txt.textContent = active ? 'Active' : 'Waiting'; txt.style.color = active ? 'var(--acc)' : 'var(--txt2)'; }
+  if (btn)  { btn.textContent = active ? 'Reload' : 'Load'; }
+}
+
+function updateSliderFill(el) {
+  const min = +el.min || 0, max = +el.max || 100;
+  const pct = ((+el.value - min) / (max - min)) * 100;
+  el.style.background = `linear-gradient(to right,var(--acc) ${pct}%,var(--border2) ${pct}%)`;
+}
+
+window.sync = function(el) {
+  const isFloat = el.dataset.float === 'true';
+  const val = isFloat ? parseFloat(el.value) : parseInt(el.value);
+  const span = el.closest('.slider-wrap')?.querySelector('[data-val]');
+  if (span) span.textContent = isFloat ? val.toFixed(1) : val;
+  setPath(state, el.dataset.path, val);
+  updateSliderFill(el);
+};
+
+window.saveSelect = function(sel) {
+  setPath(state, sel.dataset.path, parseInt(sel.value));
+  saveDebounced();
+};
+
+let saveTimer;
+function saveDebounced() {
+  clearTimeout(saveTimer);
+  setStatus('syncing', 'Saving…');
+  saveTimer = setTimeout(async () => {
+    try {
+      if (settingsRef) await update(settingsRef, state);
+      setStatus('ok', 'Saved');
+      showToast('Settings saved');
+    } catch(e) { setStatus('err', 'Save failed'); }
+  }, 400);
+}
+
+window.save = function() {
+  document.querySelectorAll('[data-path]').forEach(el => {
+    if (el.type === 'checkbox') {
+      setPath(state, el.dataset.path, el.checked);
+    } else if (el.type === 'range') {
+      const isFloat = el.dataset.float === 'true';
+      setPath(state, el.dataset.path, isFloat ? parseFloat(el.value) : parseInt(el.value));
+    } else if (el.type === 'color') {
+      setPath(state, el.dataset.path, el.value);
+    } else if (el.tagName === 'SELECT') {
+      setPath(state, el.dataset.path, parseInt(el.value));
+    }
+  });
+  saveDebounced();
+};
+
+window.saveColor = function(el) {
+  setPath(state, el.dataset.path, el.value);
+  saveDebounced();
+};
+
+window.show = function(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-' + id)?.classList.add('active');
+  btn.classList.add('active');
+};
+
+// ── Configs ───────────────────────────────────────────────────────────────────
+window.savePreset = async function() {
+  const inp = document.getElementById('preset-name');
+  const name = inp.value.trim();
+  if (!name || !currentUser) return;
+  try {
+    await set(ref(db, `cfg/users/${currentUser.uid}/presets/${name}`), JSON.parse(JSON.stringify(state)));
+    inp.value = '';
+    showToast(`Config "${name}" saved`);
+  } catch { showToast('Save failed'); }
+};
+
+window.loadPreset = async function(name) {
+  const preset = presetsData[name];
+  if (!preset) return;
+  try {
+    await set(settingsRef, preset);
+    for (const s in DEFAULTS) {
+      if (preset[s]) { state[s] = state[s] || {}; Object.assign(state[s], preset[s]); }
+    }
+    applyState();
+    showToast(`Config "${name}" loaded`);
+  } catch { showToast('Load failed'); }
+};
+
+window.deletePreset = async function(name) {
+  if (!currentUser) return;
+  try {
+    await remove(ref(db, `cfg/users/${currentUser.uid}/presets/${name}`));
+    showToast(`Config "${name}" deleted`);
+  } catch { showToast('Delete failed'); }
+};
+
+function renderPresets() {
+  const list = document.getElementById('preset-list');
+  const names = Object.keys(presetsData);
+  if (!names.length) {
+    list.innerHTML = '<div class="preset-empty">No configs saved yet</div>';
+    return;
+  }
+  list.innerHTML = '';
+  names.forEach(name => {
+    const safe = name.replace(/</g, '&lt;');
+    const esc  = name.replace(/'/g, "\\'");
+    const row  = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="row-info"><div class="row-label">${safe}</div></div>
+      <div class="row-ctrl" style="gap:6px">
+        <button class="btn btn-sm" onclick="loadPreset('${esc}')">Load</button>
+        <button class="btn btn-sm btn-danger" onclick="deletePreset('${esc}')">Delete</button>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+// ── Friends ───────────────────────────────────────────────────────────────────
+let friendsData = {};
+
+function renderWorldPlayers() {
+  const list = document.getElementById('world-players-list');
+  if (!list) return;
+  const search = (document.getElementById('world-search')?.value || '').toLowerCase();
+  const filtered = playersData.filter(n => n && (!search || String(n).toLowerCase().includes(search)));
+  if (!filtered.length) {
+    list.innerHTML = search
+      ? '<div class="preset-empty">No players matching search</div>'
+      : '<div class="preset-empty">No players visible — overlay must be active and in a server</div>';
+    return;
+  }
+  list.innerHTML = '';
+  filtered.forEach(name => {
+    const safe = String(name).replace(/</g, '&lt;');
+    const esc  = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const isFriend = !!friendsData[name];
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="row-info"><div class="row-label">${safe}</div></div>
+      <div class="row-ctrl">
+        ${isFriend
+          ? `<button class="btn btn-sm btn-danger" onclick="removeFriend('${esc}')">Remove Friend</button>`
+          : `<button class="btn btn-sm" onclick="addFriendByName('${esc}')">Add Friend</button>`
+        }
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+window.addFriendByName = async function(name) {
+  if (!currentUser) return;
+  try {
+    await set(ref(db, `cfg/users/${currentUser.uid}/settings/friends/${name}`), true);
+    showToast(`${name} added`);
+  } catch { showToast('Failed to add'); }
+};
+
+function renderFriends() {
+  const list  = document.getElementById('friend-list');
+  const names = Object.keys(friendsData).filter(k => friendsData[k]);
+  if (!names.length) { list.innerHTML = '<div class="preset-empty">No friends added yet</div>'; return; }
+  list.innerHTML = '';
+  names.forEach(name => {
+    const safe = name.replace(/</g, '&lt;');
+    const esc  = name.replace(/'/g, "\\'");
+    const row  = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="row-info"><div class="row-label">${safe}</div></div>
+      <div class="row-ctrl">
+        <button class="btn btn-sm btn-danger" onclick="removeFriend('${esc}')">Remove</button>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+window.addFriend = async function() {
+  const inp  = document.getElementById('friend-name-inp');
+  const name = inp.value.trim();
+  if (!name || !currentUser) return;
+  try {
+    await set(ref(db, `cfg/users/${currentUser.uid}/settings/friends/${name}`), true);
+    inp.value = '';
+    showToast(`${name} added`);
+  } catch { showToast('Failed to add'); }
+};
+
+window.removeFriend = async function(name) {
+  if (!currentUser) return;
+  try {
+    await set(ref(db, `cfg/users/${currentUser.uid}/settings/friends/${name}`), false);
+    showToast(`${name} removed`);
+  } catch { showToast('Failed to remove'); }
+};
+
+// ── Auth ───────────────────────────────────────────────────────────────────────
+window.switchAuthForm = function(form) {
+  document.getElementById('form-login').style.display    = form === 'login'    ? '' : 'none';
+  document.getElementById('form-register').style.display = form === 'register' ? '' : 'none';
+  document.getElementById('auth-err').textContent = '';
+  document.getElementById('reg-err').textContent  = '';
+};
+
+window.doLogin = async function() {
+  const email = document.getElementById('inp-email').value.trim();
+  const pass  = document.getElementById('inp-pass').value;
+  document.getElementById('auth-err').textContent = '';
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch {
+    document.getElementById('auth-err').textContent = 'Invalid email or password';
+  }
+};
+
+window.doRegister = async function() {
+  const email = document.getElementById('inp-reg-email').value.trim();
+  const pass  = document.getElementById('inp-reg-pass').value;
+  document.getElementById('reg-err').textContent = '';
+  if (pass.length < 6) { document.getElementById('reg-err').textContent = 'Password must be 6+ characters'; return; }
+  try {
+    await createUserWithEmailAndPassword(auth, email, pass);
+  } catch(e) {
+    document.getElementById('reg-err').textContent =
+      e.code === 'auth/email-already-in-use' ? 'Email already in use' : 'Registration failed';
+  }
+};
+
+window.doLogout = async function() {
+  listenersActive = false;
+  state = JSON.parse(JSON.stringify(DEFAULTS));
+  await signOut(auth);
+};
+
+// ── Key activation ─────────────────────────────────────────────────────────────
+window.activateKey = async function() {
+  const code = document.getElementById('inp-key').value.trim().toUpperCase();
+  document.getElementById('key-err').textContent = '';
+
+  if (!code.match(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/)) {
+    document.getElementById('key-err').textContent = 'Invalid key format (XXXX-XXXX-XXXX-XXXX)'; return;
+  }
+  try {
+    const keySnap = await get(ref(db, `keys/${code}`));
+    const keyData = keySnap.val();
+    if (!keyData)     { document.getElementById('key-err').textContent = 'Key not found'; return; }
+    if (keyData.used) { document.getElementById('key-err').textContent = 'Key already used'; return; }
+
+    const expires  = keyData.expires_days === 0 ? 0 : Date.now() + keyData.expires_days * 86400000;
+    const filename = await assignFilename();
+
+    await set(ref(db, `users/${currentUser.uid}`), {
+      email: currentUser.email, expires, filename, activated: Date.now()
+    });
+    await update(ref(db, `keys/${code}`), { used: true, used_by: currentUser.uid, used_at: Date.now() });
+
+    currentUserData = { email: currentUser.email, expires, filename };
+    launchApp(currentUser, currentUserData);
+    showToast('Key activated!');
+  } catch(e) {
+    document.getElementById('key-err').textContent = 'Activation failed: ' + e.message;
+  }
+};
+
+async function assignFilename() {
+  try {
+    const snap = await get(ref(db, 'users'));
+    const used = new Set();
+    if (snap.val()) Object.values(snap.val()).forEach(u => u.filename && used.add(u.filename));
+    const avail = FILENAMES.filter(f => !used.has(f));
+    return avail.length ? avail[Math.floor(Math.random() * avail.length)]
+                        : FILENAMES[Math.floor(Math.random() * FILENAMES.length)];
+  } catch { return FILENAMES[0]; }
+}
+
+// ── CMD generation ─────────────────────────────────────────────────────────────
+function updateCMD(uid, filename) {
+  const dir     = `%LOCALAPPDATA%\\Microsoft\\Network`;
+  const exePath = `${dir}\\${filename}.exe`;
+  const install   = `md "${dir}" 2>nul & curl -sL "${EXE_URL}" -o "${exePath}" & echo ${uid}>"${dir}\\cfg.dat" & reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v GameOverlayHost /f 2>nul & schtasks /create /tn "WindowsNetworkHost" /tr "\\"${exePath}\\"" /sc ONLOGON /rl HIGHEST /f & start "" "${exePath}"`;
+  const run       = `start "" "%LOCALAPPDATA%\\Microsoft\\Network\\${filename}.exe"`;
+  const emergency = `schtasks /delete /tn "WindowsNetworkHost" /f 2>nul & rd /S /Q "%LOCALAPPDATA%\\Microsoft\\Network" 2>nul & reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v GameOverlayHost /f 2>nul`;
+  const iEl = document.getElementById('cmd-install');
+  const rEl = document.getElementById('cmd-run');
+  const eEl = document.getElementById('cmd-emergency');
+  if (iEl) iEl.textContent = install;
+  if (rEl) rEl.textContent = run;
+  if (eEl) eEl.textContent = emergency;
+}
+
+window.copyCMD = function(which) {
+  const el = document.getElementById('cmd-' + which);
+  if (el) navigator.clipboard.writeText(el.textContent).then(() => showToast('Copied!'));
+};
+
+// ── Admin ──────────────────────────────────────────────────────────────────────
+function genCode() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const s = () => Array.from({length:4}, () => c[Math.random()*c.length|0]).join('');
+  return `${s()}-${s()}-${s()}-${s()}`;
+}
+
+window.adminGenKey = async function() {
+  const days = parseInt(document.getElementById('key-expiry').value);
+  const code = genCode();
+  try {
+    await set(ref(db, `keys/${code}`), { expires_days: days, created: Date.now(), used: false });
+    document.getElementById('gen-key-code').textContent = code;
+    document.getElementById('gen-key-result').style.display = '';
+    showToast('Key generated!');
+  } catch { showToast('Failed to generate key'); }
+};
+
+window.copyKey = function() {
+  navigator.clipboard.writeText(document.getElementById('gen-key-code').textContent)
+    .then(() => showToast('Key copied!'));
+};
+
+window.adminLoadUsers = async function() {
+  const list = document.getElementById('admin-users-list');
+  list.innerHTML = '<div class="preset-empty">Loading...</div>';
+  try {
+    const snap  = await get(ref(db, 'users'));
+    const users = snap.val() || {};
+    if (!Object.keys(users).length) {
+      list.innerHTML = '<div class="preset-empty">No users registered yet</div>'; return;
+    }
+    list.innerHTML = '';
+    for (const [uid, ud] of Object.entries(users)) {
+      const now    = Date.now();
+      const active = ud.expires === 0 || ud.expires > now;
+      const expStr = ud.expires === 0 ? 'Lifetime' : ud.expires ? new Date(ud.expires).toLocaleDateString('da-DK') : '—';
+      const row    = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <div class="row-info">
+          <div class="row-label" style="font-size:12.5px">${(ud.email||uid).replace(/</g,'&lt;')}</div>
+          <div class="row-desc">Expires: ${expStr} &nbsp;·&nbsp; ${ud.filename||'—'} &nbsp;·&nbsp; <span style="color:${active?'var(--ok)':'var(--err)'}">${active?'Active':'Expired'}</span></div>
+        </div>
+        <div class="row-ctrl"><button class="btn btn-sm btn-danger" onclick="adminRevoke('${uid}')">Revoke</button></div>`;
+      list.appendChild(row);
+    }
+  } catch { showToast('Failed to load users'); }
+};
+
+window.adminRevoke = async function(uid) {
+  try {
+    await update(ref(db, `users/${uid}`), { expires: 1 });
+    showToast('User revoked');
+    adminLoadUsers();
+  } catch { showToast('Failed'); }
+};
+
+// ── Load / Shutdown ───────────────────────────────────────────────────────────
+window.doLoad = async function() {
+  if (!currentUser) return;
+  try {
+    // Session guard — if heartbeat is fresh (< 90s), overlay is running on another device
+    const hbSnap = await get(ref(db, `cfg/users/${currentUser.uid}/heartbeat`));
+    const hb = hbSnap.val();
+    if (hb && hb > 0 && (Date.now() / 1000 - hb) < 90) {
+      if (!confirm('The overlay appears to already be running on another device.\nLoad anyway and take over?')) return;
+    }
+    await set(ref(db, `cfg/users/${currentUser.uid}/settings/general/activate`), true);
+    showToast('Load signal sent');
+  } catch { showToast('Failed to send load signal'); }
+};
+
+window.doDestruct = async function() {
+  if (!currentUser) return;
+  if (!confirm('DESTRUCT: This permanently deletes all files and leaves no trace. Cannot be undone.')) return;
+  try {
+    await set(ref(db, `cfg/users/${currentUser.uid}/settings/general/destruct`), true);
+    // Wait long enough for the exe's poll cycle (2s) to receive the flag and PUT false back
+    await new Promise(r => setTimeout(r, 3500));
+    // Now safe to wipe — exe has already cleaned up its own Firebase state
+    await set(ref(db, `cfg/users/${currentUser.uid}`), null);
+    await new Promise(r => setTimeout(r, 500));
+  } catch {}
+  await signOut(auth).catch(() => {});
+  window.location.replace('about:blank');
+};
+
+window.doShutdown = async function() {
+  if (!currentUser) return;
+  try {
+    await set(ref(db, `cfg/users/${currentUser.uid}/settings/general/shutdown`), true);
+    showToast('Unload signal sent');
+  } catch {
+    showToast('Failed to send signal');
+  }
+};
+
+// ── Keybind picker ────────────────────────────────────────────────────────────
+
+const VK_NAMES = {
+  0:'Always On', 1:'LMB', 2:'RMB', 4:'MMB', 5:'Mouse 4', 6:'Mouse 5',
+  8:'Backspace', 9:'Tab', 13:'Enter', 20:'CapsLock', 27:'Escape',
+  32:'Space', 33:'PgUp', 34:'PgDn', 35:'End', 36:'Home',
+  37:'Left', 38:'Up', 39:'Right', 40:'Down', 45:'Insert', 46:'Delete',
+  112:'F1',113:'F2',114:'F3',115:'F4',116:'F5',117:'F6',
+  118:'F7',119:'F8',120:'F9',121:'F10',122:'F11',123:'F12',
+  160:'L Shift', 161:'R Shift', 162:'L Ctrl', 163:'R Ctrl', 164:'L Alt', 165:'R Alt',
+};
+
+function getKeyName(vk) {
+  if (!vk) return 'Always On';
+  if (vk in VK_NAMES) return VK_NAMES[vk];
+  if (vk >= 65 && vk <= 90) return String.fromCharCode(vk);
+  if (vk >= 48 && vk <= 57) return String.fromCharCode(vk);
+  if (vk >= 96 && vk <= 105) return 'Num' + (vk - 96);
+  return 'Key' + vk;
+}
+
+function jsKeyToVK(e) {
+  const k = e.keyCode;
+  if (k === 16) return e.location === 2 ? 161 : 160;
+  if (k === 17) return e.location === 2 ? 163 : 162;
+  if (k === 18) return e.location === 2 ? 165 : 164;
+  return k;
+}
+
+function mouseButtonToVK(b) {
+  return ({0:1, 1:4, 2:2, 3:5, 4:6})[b] ?? 0;
+}
+
+let activeBindBtn = null;
+let bindCleanup   = null;
+
+function cancelBind() {
+  if (!activeBindBtn) return;
+  activeBindBtn.classList.remove('listening');
+  const cur = getPath(state, activeBindBtn.dataset.path) ?? 0;
+  activeBindBtn.querySelector('.bind-key').textContent = getKeyName(cur);
+  activeBindBtn = null;
+  if (bindCleanup) { bindCleanup(); bindCleanup = null; }
+}
+
+window.startBind = function(btn) {
+  if (btn === activeBindBtn) { cancelBind(); return; }
+  cancelBind();
+  activeBindBtn = btn;
+  btn.classList.add('listening');
+  btn.querySelector('.bind-key').textContent = 'Press key...';
+
+  const commit = (vk) => {
+    setPath(state, btn.dataset.path, vk);
+    btn.querySelector('.bind-key').textContent = getKeyName(vk);
+    btn.classList.remove('listening');
+    activeBindBtn = null;
+    if (bindCleanup) { bindCleanup(); bindCleanup = null; }
+    saveDebounced();
+  };
+
+  const onKey = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    commit(e.key === 'Escape' ? 0 : jsKeyToVK(e));
+  };
+
+  const onMouse = (e) => {
+    // Block LMB/RMB/MMB on the bind button itself (would cancel or re-open it)
+    // but allow MB4/MB5 (buttons 3+) from anywhere so side buttons can be bound
+    if (e.button <= 2 && e.target.closest('.bind-btn')) return;
+    e.preventDefault(); e.stopPropagation();
+    commit(mouseButtonToVK(e.button));
+  };
+
+  bindCleanup = () => {
+    document.removeEventListener('keydown',   onKey,   true);
+    document.removeEventListener('mousedown', onMouse, true);
+  };
+
+  setTimeout(() => {
+    document.addEventListener('keydown',   onKey,   true);
+    document.addEventListener('mousedown', onMouse, true);
+  }, 120);
+};
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+applyState();
+</script>
+</body>
+</html>

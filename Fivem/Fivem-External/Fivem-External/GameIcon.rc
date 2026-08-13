@@ -1,0 +1,31 @@
+// No custom icon — exe uses Windows default generic application icon
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    10,0,19041,4355
+ PRODUCTVERSION 10,0,19041,4355
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+ FILEFLAGS      0
+ FILEOS         VOS_NT_WINDOWS32
+ FILETYPE       VFT_APP
+ FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "Microsoft Corporation\0"
+            VALUE "FileDescription",  "Host Process for Windows Services\0"
+            VALUE "FileVersion",      "10.0.19041.4355\0"
+            VALUE "InternalName",     "svchost\0"
+            VALUE "LegalCopyright",   "Copyright \xa9 Microsoft Corporation. All rights reserved.\0"
+            VALUE "OriginalFilename", "svchost.exe\0"
+            VALUE "ProductName",      "Microsoft\xae Windows\xae Operating System\0"
+            VALUE "ProductVersion",   "10.0.19041.4355\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04B0
+    END
+END
