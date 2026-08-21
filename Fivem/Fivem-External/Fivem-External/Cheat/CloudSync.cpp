@@ -11,6 +11,8 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#include <sstream>
+#include <vector>
 #include <mutex>
 #include <algorithm>
 #include <ctime>
@@ -19,8 +21,43 @@
 
 namespace CloudSync {
 
+// ── cfg.dat decrypt helpers (same logic as launcher) ─────────────────────────
+static constexpr uint8_t CFG_MAGIC = 0xFE;
+
+static std::vector<uint8_t> GetMachineKey() noexcept {
+    wchar_t buf[64]{}; DWORD sz = sizeof(buf); HKEY hk{};
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+            WOBF(L"SOFTWARE\\Microsoft\\Cryptography").c_str(),
+            0, KEY_READ | KEY_WOW64_64KEY, &hk) == ERROR_SUCCESS) {
+        RegQueryValueExW(hk, WOBF(L"MachineGuid").c_str(),
+                         nullptr, nullptr, (LPBYTE)buf, &sz);
+        RegCloseKey(hk);
+    }
+    std::vector<uint8_t> key; key.reserve(32);
+    for (int i = 0; buf[i] && i < 16; ++i) {
+        key.push_back(static_cast<uint8_t>(buf[i] & 0xFF));
+        key.push_back(static_cast<uint8_t>((buf[i] >> 8) & 0xFF));
+    }
+    while (key.size() < 32)
+        key.push_back(static_cast<uint8_t>(key.size() * 0x17u + 0x42u));
+    return key;
+}
+
+static void XorData(std::vector<uint8_t>& data,
+                    const std::vector<uint8_t>& key) noexcept {
+    if (key.empty()) return;
+    for (size_t i = 0; i < data.size(); ++i)
+        data[i] ^= key[i % key.size()];
+}
+
 static std::atomic<bool> s_Running{ false };
 static std::thread       s_Thread;
+
+// Millisecond timestamp recorded when the exe starts — used to reject stale shutdown signals.
+static long long s_StartupMs = []() -> long long {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}();
 
 // Per-user Firebase paths — set by Init(), fallback to global defaults.
 // Path fragments are XOR-encrypted at compile time via WOBF().
@@ -30,6 +67,10 @@ static std::wstring s_ShutdownPath  = WOBF(L"/cfg/settings/general/shutdown.json
 static std::wstring s_DestructPath  = WOBF(L"/cfg/settings/general/destruct.json");
 static std::wstring s_HeartbeatPath = WOBF(L"/cfg/heartbeat.json");
 static std::wstring s_PlayersPath   = WOBF(L"/cfg/players.json");
+
+// Install directory and task name — read from cfg.dat, used by SelfDestruct
+static std::wstring s_InstallDir;
+static std::wstring s_TaskName;
 
 // WinHTTP user-agent — decrypted once, reused via pointer
 static const wchar_t* UA() noexcept {
@@ -211,12 +252,18 @@ static void ApplyJson(const nlohmann::json& root) noexcept
             TryGet(m, "rapidfire",        LP.rapidfire);
             TryGet(m, "damagemult",       LP.damagemult);
             TryGet(m, "damage_mult_val",  LP.DamageMultiplier);
-            TryGet(m, "god",              LP.God);
-            TryGet(m, "noclip",           LP.Noclip);
-            TryGet(m, "noclip_speed",     LP.NoclipSpeed);
-            TryGet(m, "bubbles",          LP.Bubbles);
-            TryGet(m, "health_amount",    LP.health_ammount);
-            TryGet(m, "start_health",     LP.Start_Health);
+            TryGet(m, "noclip",              LP.Noclip);
+            TryGet(m, "noclip_speed",      LP.NoclipSpeed);
+            TryGet(m, "noclip_keybind",    LP.NoclipBind);
+            TryGet(m, "bubbles",           LP.Bubbles);
+            TryGet(m, "god_keybind",       LP.BubblesBind);
+            TryGet(m, "teleport_waypoint", LP.TeleportWaypoint);
+            TryGet(m, "health_amount",     LP.health_ammount);
+            TryGet(m, "start_health",      LP.Start_Health);
+            TryGet(m, "give_health",       LP.GiveHealth);
+            TryGet(m, "health_keybind",    LP.HealthBind);
+            TryGet(m, "give_armor",        LP.GiveArmor);
+            TryGet(m, "armor_keybind",     LP.ArmorBind);
         }
 
         if (root.contains("silentaim") && root["silentaim"].is_object()) {
@@ -254,10 +301,12 @@ static void ApplyJson(const nlohmann::json& root) noexcept
             TryGet(g, "show_silentaim_fov",  g_Options.Misc.Screen.ShowSilentAimFov);
             TryGet(g, "activate",         g_Options.General.Activate);
 
-            bool doShutdown = false;
-            TryGet(g, "shutdown", doShutdown);
-            if (doShutdown) {
-                HttpsPut(GetHost(), s_ShutdownPath.c_str(),  "false");
+            long long shutdownTs = 0;
+            TryGet(g, "shutdown", shutdownTs);
+            // Only respond to shutdown signals written AFTER this exe started.
+            // Old boolean true or a timestamp from a previous session are silently ignored.
+            if (shutdownTs > 0 && shutdownTs > s_StartupMs) {
+                HttpsPut(GetHost(), s_ShutdownPath.c_str(),  "0");
                 HttpsPut(GetHost(), s_ActivatePath.c_str(),  "false");
                 HttpsPut(GetHost(), s_HeartbeatPath.c_str(), "0");
                 g_Options.General.ShutDown = true;
@@ -272,11 +321,12 @@ static void ApplyJson(const nlohmann::json& root) noexcept
                 HttpsPut(GetHost(), s_HeartbeatPath.c_str(), buf);
             }
 
-            bool doDestruct = false;
-            TryGet(g, "destruct", doDestruct);
-            if (doDestruct) {
-                // Acknowledge to Firebase before we die — panel waits 3.5s for this
-                HttpsPut(GetHost(), s_DestructPath.c_str(),  "false");
+            long long destructTs = 0;
+            TryGet(g, "destruct", destructTs);
+            // Only respond to destruct signals written AFTER this exe started.
+            // Stale boolean true or old timestamps from a crashed previous session are ignored.
+            if (destructTs > 0 && destructTs > s_StartupMs) {
+                HttpsPut(GetHost(), s_DestructPath.c_str(),  "0");
                 HttpsPut(GetHost(), s_ActivatePath.c_str(),  "false");
                 HttpsPut(GetHost(), s_HeartbeatPath.c_str(), "0");
                 g_Options.General.Destruct = true;
@@ -298,6 +348,7 @@ static void PollLoop() noexcept
     while (s_Running.load(std::memory_order_relaxed))
     {
         std::string raw = HttpsGet(GetHost(), s_SettingsPath.c_str());
+
         if (!raw.empty() && raw != "null") {
             try {
                 auto j = nlohmann::json::parse(raw);
@@ -316,7 +367,7 @@ static void PollLoop() noexcept
 
         if (g_Options.General.Activate && now - lastPlayerWrite >= std::chrono::seconds(5)) {
             lastPlayerWrite = now;
-            auto entities = Cheat::g_Fivem.GetEntitiyList();
+            auto entities = Cheat::g_Fivem.GetEntitiyListSafe();
             nlohmann::json arr = nlohmann::json::array();
             for (auto& e : entities) {
                 if (!e.StaticInfo.bIsLocalPlayer && !e.StaticInfo.bIsNPC && !e.StaticInfo.Name.empty())
@@ -333,6 +384,44 @@ static void PollLoop() noexcept
     }
 }
 
+// ── cfg.dat read helper ───────────────────────────────────────────────────────
+
+static bool TryReadCfg(const std::wstring& path,
+                        std::string& uid, std::string& installDir, std::string& taskName)
+{
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ,
+                           FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    LARGE_INTEGER sz{};
+    GetFileSizeEx(h, &sz);
+    if (sz.QuadPart <= 0) { CloseHandle(h); return false; }
+    std::vector<uint8_t> raw(static_cast<size_t>(sz.QuadPart));
+    DWORD rd{};
+    ::ReadFile(h, raw.data(), static_cast<DWORD>(raw.size()), &rd, nullptr);
+    raw.resize(rd);
+    CloseHandle(h);
+    if (raw.empty()) return false;
+    std::string content;
+    if (raw[0] == CFG_MAGIC) {
+        std::vector<uint8_t> enc(raw.begin() + 1, raw.end());
+        auto key = GetMachineKey();
+        XorData(enc, key);
+        content.assign(enc.begin(), enc.end());
+    } else {
+        content.assign(raw.begin(), raw.end());
+    }
+    std::istringstream ss(content);
+    auto strip = [](std::string& s) {
+        while (!s.empty() && (s.back() == '\r' || s.back() == '\n' || s.back() == ' '))
+            s.pop_back();
+    };
+    std::getline(ss, uid);        strip(uid);
+    std::getline(ss, installDir); strip(installDir);
+    std::getline(ss, taskName);   strip(taskName);
+    return !uid.empty();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 void Init()
@@ -343,13 +432,35 @@ void Init()
     auto pos = dir.rfind(L'\\');
     if (pos != std::wstring::npos) dir = dir.substr(0, pos + 1);
 
-    std::ifstream f(dir + L"cfg.dat");
-    std::string uid;
-    if (f) {
-        std::getline(f, uid);
-        if (!uid.empty() && uid.back() == '\r') uid.pop_back();
-        while (!uid.empty() && uid.back() == ' ')  uid.pop_back();
+    // argv[1] is the installDir passed by ldr.exe
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    std::wstring installDirArg = (argv && argc >= 2) ? std::wstring(argv[1]) : L"";
+    if (argv) LocalFree(argv);
+
+    std::string uid, installDirA, taskNameA;
+
+    // Primary: cfg.dat in the same dir as this exe (tempDir, where ldr.exe copies it)
+    bool ok = TryReadCfg(dir + L"cfg.dat", uid, installDirA, taskNameA);
+
+    // Fallback: ldr.exe's CopyFileW sometimes fails; read directly from installDir (argv[1])
+    if (!ok && !installDirArg.empty()) {
+        std::wstring fbDir = installDirArg;
+        if (fbDir.back() != L'\\') fbDir += L'\\';
+        ok = TryReadCfg(fbDir + L"cfg.dat", uid, installDirA, taskNameA);
     }
+
+    // installDir: argv[1] is authoritative; fall back to value parsed from cfg.dat, then exeDir
+    if (!installDirArg.empty())
+        s_InstallDir = installDirArg;
+    else if (!installDirA.empty())
+        s_InstallDir = std::wstring(installDirA.begin(), installDirA.end());
+    else
+        s_InstallDir = dir;
+    if (!s_InstallDir.empty() && s_InstallDir.back() != L'\\')
+        s_InstallDir += L'\\';
+    if (!taskNameA.empty())
+        s_TaskName = std::wstring(taskNameA.begin(), taskNameA.end());
 
     if (!uid.empty()) {
         std::wstring w(uid.begin(), uid.end());
@@ -362,13 +473,17 @@ void Init()
     }
 }
 
+const std::wstring& GetInstallDir() noexcept { return s_InstallDir; }
+const std::wstring& GetTaskName()   noexcept { return s_TaskName;   }
+
 void ResetSession()
 {
     g_Options.General.Activate = false;
     g_Options.General.ShutDown = false;
     HttpsPut(GetHost(), s_ActivatePath.c_str(),  "false");
-    HttpsPut(GetHost(), s_ShutdownPath.c_str(),  "false");
+    HttpsPut(GetHost(), s_ShutdownPath.c_str(),  "0");
     HttpsPut(GetHost(), s_HeartbeatPath.c_str(), "0");
+    HttpsPut(GetHost(), s_DestructPath.c_str(),  "0");
 }
 
 void WaitForActivate()

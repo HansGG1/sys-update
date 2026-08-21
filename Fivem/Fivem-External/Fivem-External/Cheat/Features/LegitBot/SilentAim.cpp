@@ -174,5 +174,9 @@ namespace Cheat
 			g_SilentAimTarget.store(hasSATarget ? saClosest.StaticInfo.Ped : nullptr);
 			g_SilentAimLocked.store(HookActive && saActive);
 		}
+
+		// Restore FiveM's original bytes before the thread dies
+		if (HookActive)
+			DeactivateHook();
 	}
 }

@@ -124,14 +124,18 @@ namespace Cheat
 					bool rapidfire;
 					bool damagemult;
 					float DamageMultiplier = 1.f;
-					int health_ammount;
+					int health_ammount = 200;
 
-					bool Start_Health;
+					bool Start_Health = false;
 
-					bool God;
+					bool GiveHealth = false;
+					int  HealthBind = 0;
+					bool GiveArmor = false;
+					int  ArmorBind = 0;
 
 					bool Bubbles = false;
 					int  BubblesBind = 0;
+					bool TeleportWaypoint = false;
 				}LocalPlayer;
 			}Exploits;
 			float FriendColor[4] = { 0.f, 1.f, 0.f, 1.f };
@@ -146,7 +150,7 @@ namespace Cheat
 			bool CaptureBypass = true;
 			bool VSync = true;
 			int TargetMonitor = 0;
-			int ThreadDelay = 1000;
+			int ThreadDelay = 250;
 			bool ShowKeybindList = false;
 		}General;
 	};

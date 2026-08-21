@@ -396,7 +396,7 @@ namespace FrameWork
 			if (ImGui::BeginListBox(XorStr("##pl"), ImVec2(W,172.f)))
 			{
 				if (hasLocal)
-					for (auto& cur : Cheat::g_Fivem.GetEntitiyList())
+					for (auto& cur : Cheat::g_Fivem.GetEntitiyListSafe())
 					{
 						if (cur.StaticInfo.bIsNPC || !cur.StaticInfo.Ped || cur.StaticInfo.bIsLocalPlayer) continue;
 						if (!pFilter.PassFilter(cur.StaticInfo.Name.c_str())) continue;
@@ -430,12 +430,14 @@ namespace FrameWork
 				if (!selEnt.StaticInfo.IsFriend) {
 					if (ImGui::Button(XorStr("Add Friend"),ImVec2(bw,26))) {
 						Cheat::g_Fivem.FriendList[selEnt.StaticInfo.Ped] = selEnt.StaticInfo;
-						Cheat::g_Fivem.AllEntitesList[selEnt.StaticInfo.Ped].IsFriend = true;
+						{ std::lock_guard<std::mutex> lk(Cheat::g_Fivem.AllEntitesListMtx);
+						  Cheat::g_Fivem.AllEntitesList[selEnt.StaticInfo.Ped].IsFriend = true; }
 						selEnt.StaticInfo.IsFriend = true; }
 				} else {
 					if (ImGui::Button(XorStr("Remove Friend"),ImVec2(bw,26))) {
 						Cheat::g_Fivem.FriendList.erase(selEnt.StaticInfo.Ped);
-						Cheat::g_Fivem.AllEntitesList[selEnt.StaticInfo.Ped].IsFriend = false;
+						{ std::lock_guard<std::mutex> lk(Cheat::g_Fivem.AllEntitesListMtx);
+						  Cheat::g_Fivem.AllEntitesList[selEnt.StaticInfo.Ped].IsFriend = false; }
 						selEnt.StaticInfo.IsFriend = false; }
 				}
 			}
@@ -495,8 +497,7 @@ namespace FrameWork
 		ImGui::SetCursorPos(ImVec2(kPad, kPad));
 		ImGui::CustomChild(XorStr("Self"), ImVec2(k3W,kPanelH));
 		{
-			ImGui::Checkbox(XorStr("God Mode"),    &LP.God);
-			ImGui::Checkbox(XorStr("Bubbles"),     &LP.Bubbles);
+			ImGui::Checkbox(XorStr("God Mode"),    &LP.Bubbles);
 			if (LP.Bubbles)
 				ImGui::KeyBind(XorStr("Keybind##bub"), &LP.BubblesBind);
 			ImGui::Dummy(ImVec2(0,6));
@@ -532,7 +533,7 @@ namespace FrameWork
 			ImGui::SliderInt(XorStr("Set Health"), &LP.health_ammount, 0,400,XorStr("%d hp"));
 			if (ImGui::Button(XorStr("Apply Health"),         ImVec2(W,26))) LP.Start_Health = true;
 			ImGui::Dummy(ImVec2(0,4));
-			if (ImGui::Button(XorStr("Teleport to Waypoint"), ImVec2(W,26))) Cheat::Exploits::TeleportToWaypoint();
+			if (ImGui::Button(XorStr("Teleport to Waypoint"), ImVec2(W,26))) LP.TeleportWaypoint = true;
 		}
 		ImGui::EndCustomChild();
 

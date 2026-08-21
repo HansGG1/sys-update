@@ -137,7 +137,9 @@ namespace FrameWork
 			return;
 		}
 
-		hWindow = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE, WindowClass.lpszClassName, WindowClass.lpszMenuName, WS_POPUP | WS_VISIBLE, wTargetWindowRect.left, wTargetWindowRect.top, wTargetWindowRect.Width(), wTargetWindowRect.Height(), NULL, NULL, GetModuleHandle(NULL), NULL);
+		// WS_EX_LAYERED must be present at creation so SetLayeredWindowAttributes works,
+		// and so DwmExtendFrameIntoClientArea enables per-pixel alpha compositing.
+		hWindow = CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE, WindowClass.lpszClassName, WindowClass.lpszMenuName, WS_POPUP, wTargetWindowRect.left, wTargetWindowRect.top, wTargetWindowRect.Width(), wTargetWindowRect.Height(), NULL, NULL, GetModuleHandle(NULL), NULL);
 
 		if (!hWindow)
 		{
@@ -148,14 +150,17 @@ namespace FrameWork
 			return;
 		}
 
-		// Desktop Window Manager — extend into entire client area for full transparency
+		// Desktop Window Manager — extend into entire client area for per-pixel alpha
 		MARGINS Margins = { -1 };
 		DwmExtendFrameIntoClientArea(hWindow, &Margins);
-		
-		// Apply Transparent
+
+		// Set overall alpha=255 so DWM composites the DX11 per-pixel alpha correctly.
+		// WS_EX_LAYERED must already be set (it is, from CreateWindowEx above).
 		SafeCall(SetLayeredWindowAttributes)(hWindow, RGB(0, 0, 0), 255, LWA_ALPHA);
 
-		SafeCall(ShowWindow)(hWindow, SW_SHOWDEFAULT);
+		// SW_SHOWNOACTIVATE avoids using the SW_HIDE inherited from ldr.exe's STARTUPINFO,
+		// and keeps FiveM as the foreground window.
+		SafeCall(ShowWindow)(hWindow, SW_SHOWNOACTIVATE);
 		SafeCall(UpdateWindow)(hWindow);
 
 		bInitialized = true;

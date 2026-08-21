@@ -368,6 +368,7 @@ namespace Cheat
 
 			ModuleName = std::string(FoundName.begin(), FoundName.end());
 			ModuleBase = FrameWork::Memory::GetModuleBaseByName(Pid, FoundName);
+
 			if (!ModuleBase)
 				return;
 
@@ -375,6 +376,8 @@ namespace Cheat
 			FrameWork::Memory::AttachProces(Pid);
 
 			size_t ImageSize = FrameWork::Memory::GetModuleImageSize(ModuleBase);
+
+
 			if (ImageSize > 0x1000000)
 			{
 				auto Scan = [&](const char* Sig) -> uint64_t
@@ -392,6 +395,7 @@ namespace Cheat
 				}
 
 				Camera = Scan("48 8B 05 ?? ?? ?? ?? 38 98 ?? ?? ?? ?? 8A C3");
+
 
 				{
 					uint64_t Hit = FrameWork::Memory::PatternScan(ModuleBase, ImageSize,
@@ -432,6 +436,7 @@ namespace Cheat
 
 				if (World && ReplayInterface && ViewPort && Camera)
 					bIsIntialized = true;
+
 			}
 
 			return;
@@ -506,7 +511,8 @@ namespace Cheat
 		}
 
 
-		LockLists.lock();
+		{
+		std::lock_guard<std::mutex> lk(LockLists);
 
 		EntityList.clear();
 
@@ -556,14 +562,11 @@ namespace Cheat
 
 			if (CurrentEntity.StaticInfo.Name.empty())
 			{
-				if (!PlayerIdToName.empty())
-				{
-					auto it = PlayerIdToName.find(CurrentEntity.StaticInfo.NetId);
-					if (it != PlayerIdToName.end() && CurrentEntity.StaticInfo.NetId != -1)
-						CurrentEntity.StaticInfo.Name = it->second;
-					else
-						CurrentEntity.StaticInfo.Name = XorStr("username");
-				}
+				auto it = PlayerIdToName.find(CurrentEntity.StaticInfo.NetId);
+				if (it != PlayerIdToName.end() && CurrentEntity.StaticInfo.NetId != -1)
+					CurrentEntity.StaticInfo.Name = it->second;
+				else
+					CurrentEntity.StaticInfo.Name = XorStr("username");
 			}
 
 			// Check name-based friend list (after name is resolved from PlayerIdToName)
@@ -610,7 +613,7 @@ namespace Cheat
 			EntityList.push_back(CurrentEntity);
 		}
 
-		LockLists.unlock();
+		} // releases LockLists
 
 		if (!LanGame)
 		{
@@ -651,25 +654,42 @@ namespace Cheat
 
 						if (RawText.size() > 0)
 						{
-							size_t StartPos = RawText.find(XorStr("last_server_url"));
-							if (StartPos != std::string::npos)
+							// Walk "last_server" occurrences — skip "last_server_url", keep the bare one
+							std::string addr;
+							size_t searchPos = 0;
+							while (searchPos < RawText.size())
 							{
-								std::string TempServerIp = RawText.substr(StartPos + 15);
+								size_t found = RawText.find(XorStr("last_server"), searchPos);
+								if (found == std::string::npos) break;
 
-								if (TempServerIp.find(XorStr("last_server_url")))
-								{
-									TempServerIp = TempServerIp.substr(TempServerIp.find(XorStr("last_server_url")) + 15);
+								size_t afterKey = found + 11; // len("last_server")
+								if (afterKey < RawText.size() && RawText[afterKey] == '_') {
+									searchPos = found + 12;
+									continue;
 								}
 
-								StartPos = TempServerIp.find(XorStr("last_server"));
+								// Skip separators: space, quote, colon
+								while (afterKey < RawText.size() &&
+									   (RawText[afterKey] == ' ' || RawText[afterKey] == '"' || RawText[afterKey] == ':'))
+									afterKey++;
 
-								TempServerIp = TempServerIp.substr(StartPos + 11);
+								size_t end = afterKey;
+								while (end < RawText.size() &&
+									   RawText[end] != '"' && RawText[end] != '\n' && RawText[end] != '\r')
+									end++;
 
-								StartPos = TempServerIp.find(XorStr(":"));
+								addr = RawText.substr(afterKey, end - afterKey);
+								break;
+							}
 
-								ServerIp = TempServerIp.substr(0, StartPos);
-
-								ServerPort = TempServerIp.substr(StartPos + 1, StartPos + 5);
+							size_t colon = addr.rfind(':');
+							if (colon != std::string::npos && !addr.empty())
+							{
+								ServerIp   = addr.substr(0, colon);
+								ServerPort = addr.substr(colon + 1, 5);
+								// Strip any non-digit characters that may follow the port number
+								ServerPort.erase(std::remove_if(ServerPort.begin(), ServerPort.end(),
+									[](char c) { return !std::isdigit((unsigned char)c); }), ServerPort.end());
 							}
 						}
 
@@ -712,9 +732,7 @@ namespace Cheat
 #endif // _DEBUG
 		}
 
-		LockLists2.lock();
-
-		VehicleList.clear();
+		std::vector<VehicleInfo> tmpVehicles;
 
 		for (size_t i = 0; i < pVehicleInterface->VehicleMaximum(); i++)
 		{
@@ -738,10 +756,13 @@ namespace Cheat
 				continue;
 			CurrentVeh.iIndex = i;
 
-			VehicleList.push_back(CurrentVeh);
+			tmpVehicles.push_back(CurrentVeh);
 		}
 
-		LockLists2.unlock();
+		{
+			std::lock_guard<std::mutex> lk(LockLists2);
+			VehicleList = std::move(tmpVehicles);
+		}
 	}
 
 	Vector3D GetBonePosByInstFragAndID(uint64_t crSkeletonData, unsigned int BoneID)
@@ -868,7 +889,7 @@ namespace Cheat
 		float Closest = DistancesArray[0];
 		int ClosestBone = 0;
 
-		for (int i = 0; i < 5; ++i)
+		for (int i = 0; i < 3; ++i)
 		{
 			if (DistancesArray[i] < Closest)
 			{
@@ -905,38 +926,39 @@ namespace Cheat
 
 		bool Found = false;
 
-		LockLists.lock();
-		for (Entity Current : EntityList)
 		{
-			if (Current.StaticInfo.bIsLocalPlayer)
-				continue;
-		
-			if (Current.StaticInfo.bIsNPC && !NPC)
-				continue;
-		
-			float WorldDistance = Current.Cordinates.DistTo(GetLocalPlayerInfo().WorldPos);
-		
-			if (WorldDistance > MaxDistance)
-				continue;
-		
-			ImVec2 ClosestBone = GetClosestHitBox(Current);
-			if (ClosestBone.x == 0 && ClosestBone.y == 0)
-				continue;
-		
-			ImVec2 Center = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f);
-		
-			float ScreenDistance = ClosestBone.DistTo(Center);
-		
-			if (ScreenDistance > Fov)
-				continue;
-		
-			if (ScreenDistance < ClosestScreenDistance)
+			std::lock_guard<std::mutex> lk(LockLists);
+			for (Entity Current : EntityList)
 			{
-				ClosestScreenDistance = ScreenDistance;
-				ClosestPeds.push_back(Current);
+				if (Current.StaticInfo.bIsLocalPlayer)
+					continue;
+
+				if (Current.StaticInfo.bIsNPC && !NPC)
+					continue;
+
+				float WorldDistance = Current.Cordinates.DistTo(GetLocalPlayerInfo().WorldPos);
+
+				if (WorldDistance > MaxDistance)
+					continue;
+
+				ImVec2 ClosestBone = GetClosestHitBox(Current);
+				if (ClosestBone.x == 0 && ClosestBone.y == 0)
+					continue;
+
+				ImVec2 Center = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f);
+
+				float ScreenDistance = ClosestBone.DistTo(Center);
+
+				if (ScreenDistance > Fov)
+					continue;
+
+				if (ScreenDistance < ClosestScreenDistance)
+				{
+					ClosestScreenDistance = ScreenDistance;
+					ClosestPeds.push_back(Current);
+				}
 			}
 		}
-		LockLists.unlock();
 		
 		for (Entity Current : ClosestPeds)
 		{
@@ -960,6 +982,8 @@ namespace Cheat
 			return;
 
 		auto FollowPedCamera = pCamGameplayDirector->GetFollowPedCamera();
+		if (!FollowPedCamera)
+			return;
 
 		Vector3D CrosshairPosition = FollowPedCamera->GetCrosshairPosition();
 		Vector3D ViewAngles = FollowPedCamera->GetViewAngles();
@@ -1056,14 +1080,20 @@ namespace Cheat
 					if (!NewInfo.empty())
 					{
 						PlayersInfo = std::move(NewInfo);
-						for (const auto& Player : PlayersInfo)
-							PlayerIdToName[Player[XorStr("id")]] = Player[XorStr("name")];
-
+						{
+							// PlayerIdToName is read inside LockLists in UpdateEntitiyList — lock here too
+							std::lock_guard<std::mutex> lk(LockLists);
+							for (const auto& Player : PlayersInfo)
+								PlayerIdToName[Player[XorStr("id")]] = Player[XorStr("name")];
+						}
 #ifdef _DEBUG
 						std::cout << XorStr("[FivemSDK] Found Players Infos: ") << PlayerIdToName.size() << std::endl;
 #endif // _DEBUG
 
-						AllEntitesList.clear();
+						{
+							std::lock_guard<std::mutex> lk(AllEntitesListMtx);
+							AllEntitesList.clear();
+						}
 					}
 				}
 				catch (...) {}

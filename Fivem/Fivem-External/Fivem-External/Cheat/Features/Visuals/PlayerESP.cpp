@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <cstdlib>
+#include <mutex>
 
 #include "../../FivemSDK/Fivem.hpp"
 #include "../../Options.hpp"
@@ -12,11 +13,13 @@ namespace Cheat
 {
 	struct VisState { bool visible = true; int8_t disagree = 0; };
 	static std::unordered_map<CPed*, VisState> s_visCache;
+	static std::mutex                          s_visCacheMtx;
 
 	bool ESP::IsESPVisible(CPed* ped)
 	{
 		if (!g_Options.Visuals.ESP.Players.VisibleCheck)
 			return true;
+		std::lock_guard<std::mutex> lk(s_visCacheMtx);
 		auto it = s_visCache.find(ped);
 		return (it == s_visCache.end()) ? true : it->second.visible;
 	}
@@ -116,17 +119,22 @@ namespace Cheat
 				}
 
 				// Hysteresis: require 4 consecutive disagreeing frames to flip.
-				VisState& vs = s_visCache[Current.StaticInfo.Ped];
-				if (raw != vs.visible)
+				bool currentVisible;
 				{
-					if (++vs.disagree >= 4) { vs.visible = raw; vs.disagree = 0; }
-				}
-				else
-				{
-					vs.disagree = 0;
+					std::lock_guard<std::mutex> lk(s_visCacheMtx);
+					VisState& vs = s_visCache[Current.StaticInfo.Ped];
+					if (raw != vs.visible)
+					{
+						if (++vs.disagree >= 4) { vs.visible = raw; vs.disagree = 0; }
+					}
+					else
+					{
+						vs.disagree = 0;
+					}
+					currentVisible = vs.visible;
 				}
 
-				if (vs.visible)
+				if (currentVisible)
 					EntityColor = ImColor(g_Options.Visuals.ESP.Players.VisibleColor[0], g_Options.Visuals.ESP.Players.VisibleColor[1], g_Options.Visuals.ESP.Players.VisibleColor[2], g_Options.Visuals.ESP.Players.VisibleColor[3]);
 				else
 					EntityColor = ImColor(g_Options.Visuals.ESP.Players.NotVisibleColor[0], g_Options.Visuals.ESP.Players.NotVisibleColor[1], g_Options.Visuals.ESP.Players.NotVisibleColor[2], g_Options.Visuals.ESP.Players.NotVisibleColor[3]);

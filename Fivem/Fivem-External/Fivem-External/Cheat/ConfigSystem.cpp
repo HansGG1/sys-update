@@ -65,7 +65,6 @@ namespace Cheat
 		SetupItem(&g_Options.Misc.Exploits.LocalPlayer.rapidfire,       false, XorStr("rapidfire"));
 		SetupItem(&g_Options.Misc.Exploits.LocalPlayer.damagemult,      false, XorStr("damagemult"));
 		SetupItem(&g_Options.Misc.Exploits.LocalPlayer.DamageMultiplier, 1.f,  XorStr("damagemultval"));
-		SetupItem(&g_Options.Misc.Exploits.LocalPlayer.God, false, XorStr("God"));
 
 		SetupItem(&g_Options.Misc.Exploits.LocalPlayer.Bubbles,     false, XorStr("bubbles_enabled"));
 		SetupItem(&g_Options.Misc.Exploits.LocalPlayer.BubblesBind, 0,     XorStr("bubbles_bind"));

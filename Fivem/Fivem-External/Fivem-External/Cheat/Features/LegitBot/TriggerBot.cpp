@@ -1,6 +1,7 @@
 #include "TriggerBot.hpp"
 
 #include <thread>
+#include <mutex>
 
 #include "../../Options.hpp"
 #include "../Visuals/PlayerESP.hpp"
@@ -69,8 +70,12 @@ namespace Cheat
 				if (!g_Fivem.IsPlayerAiming())
 					CanShoot = false;
 
-				if (g_Fivem.AllEntitesList[AimingEnity].IsFriend)
-					CanShoot = false;
+				{
+					std::lock_guard<std::mutex> lk(g_Fivem.AllEntitesListMtx);
+					auto it = g_Fivem.AllEntitesList.find(AimingEnity);
+					if (it != g_Fivem.AllEntitesList.end() && it->second.IsFriend)
+						CanShoot = false;
+				}
 			}
 			else
 				CanShoot = false;
@@ -95,6 +100,8 @@ namespace Cheat
 
 				Shooting = false;
 			}
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 	}
 }

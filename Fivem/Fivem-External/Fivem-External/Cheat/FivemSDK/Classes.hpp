@@ -237,6 +237,14 @@ namespace Cheat
 			return FrameWork::Memory::ReadMemory<float>(this + Armor);
 		}
 
+		void SetArmor(float NewArmor)
+		{
+			if (!this)
+				return;
+
+			FrameWork::Memory::WriteMemory(this + Armor, NewArmor);
+		}
+
 		uint32_t GetPedType()
 		{
 			if (!this)

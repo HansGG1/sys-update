@@ -85,7 +85,8 @@ namespace Cheat
 		uint64_t GetModuleBase() { return ModuleBase; };
 		LocalPEDInfo GetLocalPlayerInfo() { return LocalPlayerInfo; }
 		std::vector<Entity> GetEntitiyList() { return EntityList; }
-		std::vector<VehicleInfo> GetVehicleList() { return VehicleList; }
+		std::vector<Entity> GetEntitiyListSafe() { std::lock_guard<std::mutex> lk(LockLists); return EntityList; }
+		std::vector<VehicleInfo> GetVehicleList() { std::lock_guard<std::mutex> lk(LockLists2); return VehicleList; }
 		uint64_t GetHandleBulletAddress() { return HandleBullet; }
 		uint64_t GetBlipListAddress() { return BlipList; }
 		uint64_t GetVisibilityBase() { return VisibilityBase; }
@@ -115,6 +116,7 @@ namespace Cheat
 		uint64_t GetViewPortPtr() const { return pViewPort; }
 
 		std::unordered_map<CPed*, PedStaticInfo> AllEntitesList;
+		std::mutex                               AllEntitesListMtx;
 		std::unordered_map<CPed*, PedStaticInfo> FriendList;
 
 		// Name-based friends synced from Firebase — write with FriendNamesMtx held
